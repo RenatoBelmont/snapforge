@@ -1,0 +1,17 @@
+{
+  "name": "snapforge",
+  "version": "1.2.0",
+  "private": true,
+  "description": "Snapforge — editor de pixel art, tilemap, Pixel Snapper e normal maps (HTML/CSS/JS puro, roda no iPad)",
+  "scripts": {
+    "build": "node build.js",
+    "build:icons": "node build.js --icons",
+    "test": "node build.js && node tests/e2e.js",
+    "test:engines": "node tests/engines-vs-rust.js && node tests/snapper-structure.js",
+    "fixtures": "node tests/fixtures/make_fixtures.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.50.0",
+    "pngjs": "^7.0.0"
+  }
+}
