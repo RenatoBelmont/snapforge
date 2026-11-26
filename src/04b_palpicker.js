@@ -23,7 +23,7 @@ function palettePicker(host, opts) {
     const below = innerHeight - r.bottom; if (below < 260 && r.top > below) { pop.style.bottom = (innerHeight - r.top + 4) + 'px'; pop.style.maxHeight = (r.top - 12) + 'px'; } else { pop.style.top = (r.bottom + 4) + 'px'; pop.style.maxHeight = (below - 12) + 'px'; }
     pop.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
     pop.addEventListener('click', async (e) => {
-      const d = e.target.closest('[data-del]'); if (d) { e.stopPropagation(); const n = d.dataset.del; closePP(); if (await confirmar(`Apagar a paleta "${n}"?`, 'Apagar')) { delete userPals[n]; LS.set('userPals', userPals); if (palName === n) { palName = 'Sweetie 16'; LS.set('palName', palName); } refreshAllPalPickers(); renderColor(); } return; }
+      const d = e.target.closest('[data-del]'); if (d) { e.stopPropagation(); const n = d.dataset.del; closePP(); if (await confirmar(`Apagar a paleta "${n}"?`, 'Apagar')) { delete userPals[n]; LS.set('userPals', userPals); if (palName === n) { palName = DEFAULT_PAL; LS.set('palName', palName); } refreshAllPalPickers(); renderColor(); } return; }
       const it = e.target.closest('[data-v]'); if (!it) return; value = it.dataset.v; closePP(); draw(); opts.onChange && opts.onChange(value);
     });
   });

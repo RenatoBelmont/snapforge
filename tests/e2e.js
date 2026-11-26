@@ -65,7 +65,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: T([[x0, y0]]) }); await sleep(600);
   ok(await p.evaluate(() => getComputedStyle(document.querySelector('#lupa')).display === 'block'), 'segurar o dedo abre a lupa');
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  ok(await p.evaluate(() => st.color.slice(0, 3).join()) === '26,28,44', 'soltar pega a cor sob o dedo');
+  ok(await p.evaluate(() => st.color.slice(0, 3).join() === hex2rgb(palList(DEFAULT_PAL)[0]).join()), 'soltar pega a cor sob o dedo (a 1ª cor da paleta inicial, usada no desenho)');
   ok(await p.evaluate(() => getComputedStyle(document.querySelector('#lupa')).display === 'none'), 'lupa fecha');
   // ---- desligar Só Pencil: dedo pinta; segundo dedo cancela o traço
   await p.evaluate(() => setPenOnly(false)); const c2 = await cnt(); [x0, y0] = at(2, 28);
@@ -117,7 +117,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   await p.keyboard.press('f'); await sleep(200);
   ok(await p.evaluate(() => document.body.classList.contains('foco') && getComputedStyle(faixa).display === 'flex' && getComputedStyle(side).display === 'none'), 'F entra em tela cheia com faixa de cores');
   await p.screenshot({ path: path.join(SHOTS, 't_full.png') });
-  await p.click('#faixa [data-fx]:nth-child(5)'); ok(await p.evaluate(() => rgb2hex(...st.color.slice(0, 3))) === '#ef7d57', 'tocar na faixa escolhe a cor');
+  await p.click('#faixa [data-fx]:nth-child(5)'); ok(await p.evaluate(() => rgb2hex(...st.color.slice(0, 3)) === palList(palName)[3]), 'tocar na faixa escolhe a cor (4ª da paleta, depois da borracha)');
   await p.keyboard.press('Escape'); ok(!(await p.evaluate(() => document.body.classList.contains('foco'))), 'Esc sai da tela cheia');
   // ---- menus da barra
   await p.click('#rail [data-tool=ellipse]'); ok(await p.evaluate(() => st.tool) === 'ellipse', 'trilho de ferramentas');
@@ -186,6 +186,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const t0i = zb.indexOf('{\n "compressionlevel"'), t1i = zb.indexOf(Buffer.from([0x50, 0x4b, 3, 4]), t0i); const tmj = JSON.parse(zb.slice(t0i, t1i).toString('utf8')); ok(tmj.layers.length === 2 && tmj.tilesets[0].columns === 11 && tmj.tilesets[0].tilecount === 77 && tmj.tilesets[0].tilewidth === 16 && tmj.layers[0].data.length === 1024, '.tmj válido com as 2 camadas');
   await p.screenshot({ path: path.join(SHOTS, 'v3_tile.png') });
   await p.reload(); await sleep(500); const rs = await p.evaluate(() => [tm.layers.length, tm.layers.map(l => l.auto).join(), tsCols, tm.mw]); ok(rs[0] === 2 && rs[1] === 'false,true' && rs[2] === 11, 'mapa e tileset restaurados após recarregar ' + rs);
+  // ---- paletas do Renato (1.10.0): primeiras da lista e Pogo City como inicial
+  ok(await p.evaluate(() => Object.keys(PALETTES).slice(0, 2).join() === 'Pogo City,Apartment' && palList('Pogo City').length === 33 && palList('Apartment').length === 28 && DEFAULT_PAL === 'Pogo City'), 'Pogo City (33 cores) e Apartment (28) são as primeiras paletas e a Pogo City é a inicial');
   // ---- paletas do Lospec (1.5.0)
   ok(await p.evaluate(() => [['RETURN 20', 20], ['Minty chip', 30], ['CC-29', 29], ['Resurrect 64', 64], ['SLSO8', 8], ['Lost Century', 16], ['Twilight 5', 5], ['CafeArisuki', 10]].every(([n, k]) => PALETTES[n] && palList(n).length === k && palList(n).every(c => /^#[0-9a-f]{6}$/.test(c)))), 'paletas do Lospec embutidas com o número certo de cores');
   ok(await p.evaluate(() => { const pv = palName; palName = 'Resurrect 64'; renderColor(); renderFaixa(); const n = [document.querySelectorAll('#cb-cor .sw').length, document.querySelectorAll('#pRow button.c').length]; palName = pv; renderColor(); renderFaixa(); return n.join(); }) === '64,64', 'Resurrect 64 aparece inteira no painel e na fileira de paleta');

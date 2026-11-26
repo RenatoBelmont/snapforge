@@ -1,6 +1,6 @@
 # Snapforge — guia do projeto (para o Claude Code)
 
-Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.9.1**.
+Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.10.0**.
 
 Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad com Apple Pencil** e também no Windows (Chrome/Firefox). Interface 100% em **português do Brasil**.
 
@@ -33,7 +33,7 @@ src/
   fonts/             Silkscreen (OFL), embutida em base64 no build — sem rede
   tilesets/          Sprout Lands (Basic), de Cup Nooble: 17 PNGs embutidos no build + LICENSE-sprout-lands.txt
 tests/
-  e2e.js             151 verificações no navegador (Playwright + Chromium)
+  e2e.js             152 verificações no navegador (Playwright + Chromium)
   engines-vs-rust.js compara os motores JS com os binários Rust originais
   snapper-structure.js  idem, checando grade e cor-base célula a célula
   fixtures/          imagens de teste + make_fixtures.js que as gera
@@ -80,7 +80,7 @@ Scripts clássicos concatenados, todos no mesmo escopo global (sem `import`/`exp
 | `01_icons.js` | Ícones SVG de traço (estilo Lucide), `ico(nome)`, `paintIcons()` troca `<i data-ic>` por SVG |
 | `02_utils.js` | `toast`, `busy`/`withBusy` (card de carregamento central), `modal`/`confirmar`, leitura de arquivos, `saveBlob` (usa a folha de compartilhar no iPad), `fitImage`, `keyMagenta`, `LS` (localStorage com prefixo `snapforge.` e migração das chaves antigas `pixelaria.`) |
 | `03_engine.js` | Worker dos motores (`runEngine('snap'|'normal', img, opts)`) com fallback na thread principal |
-| `04_pal.js` | Paletas embutidas (Sweetie 16, PICO-8, Endesga 32, Game Boy, 1-bit + 8 do Lospec com o autor em comentário: RETURN 20, Minty chip, CC-29, Resurrect 64, SLSO8, Lost Century, Twilight 5, CafeArisuki), paletas do usuário, cores recentes |
+| `04_pal.js` | Paletas embutidas: primeiro as **do Renato** (Pogo City, Apartment; `DEFAULT_PAL = 'Pogo City'` é a inicial, também ao apagar a paleta atual e no prompt do ChatGPT), depois Sweetie 16, PICO-8, Endesga 32, Game Boy, 1-bit + 8 do Lospec com o autor em comentário: RETURN 20, Minty chip, CC-29, Resurrect 64, SLSO8, Lost Century, Twilight 5, CafeArisuki), paletas do usuário, cores recentes |
 | `04c_palimport.js` | Importar paletas: `parsePaletteFile` (.hex, .gpl do Lospec/GIMP, .pal JASC e RIFF), `lospecSlug`, `fetchLospecPalette` (única chamada de rede; o 404 do Lospec vem sem CORS, então uma falha testa `pico-8` para separar "nome errado" de "sem internet"), `adoptPalette` (se as cores já forem de uma paleta padrão, só a seleciona) |
 | `04b_palpicker.js` | Seletor de paleta **com prévia das cores** (`palettePicker(host, {value, auto, doc, onChange})`) |
 | `05_doc.js` | Documento do editor (`doc`: camadas × quadros de `Uint8ClampedArray` RGBA), estado `st`, histórico (`pushHist/undo/redo`, snapshots completos, máx. 80), `composite()` |
@@ -163,6 +163,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 
 ## Histórico
 
+- **1.10.0** — paletas do Renato **Pogo City** (33 cores) e **Apartment** (28) fixas no topo da lista; **Pogo City é a paleta inicial** (`DEFAULT_PAL`) para quem abre o app pela primeira vez — quem já escolheu outra continua com ela. Testes que assumiam as cores da Sweetie 16 agora leem a paleta em uso. 152 verificações.
 - **1.9.1** — ícone de **importar** (seta entrando na caixa, `ico('import')`) em "Importar PNG" do Tilemap (usava a seta de envio, para fora) e em "Do Lospec" (usava o mesmo ícone de Exportar). Regra: `import` = trazer para dentro do app; `download` = exportar/baixar.
 - **1.9.0** — **vários tilesets no mesmo mapa**: antes o mapa tinha um tileset só e trocá-lo redesenhava tudo o que já estava pintado com o tileset novo. Agora cada célula lembra de qual tileset veio (schema 2 do mapa; o schema 1 continua abrindo igual); lista "Tilesets deste mapa"; conta-gotas troca de tileset; export Tiled com vários tilesets. 151 verificações.
 - **1.8.0** — **Tilesets do Sprout Lands** (Cup Nooble) no Tilemap, em listas, no lugar do tileset de exemplo; Grama como padrão. Ajustes pedidos no iPad: **bigorna** sobre uma placa escura (sumia no tema claro); barra de comandos com espaço menor entre botões e o **nome do projeto encolhendo com "…"** para o botão de tela cheia nunca ser cortado (editor e Tilemap iguais); **xadrez do fundo do Tilemap preso ao mapa** (antes as casas tinham 16 px fixos de tela e escorregavam no zoom); módulo **Canvas em 2º** no painel; "Manter desenho/Redimensionar" como chips sem quebra de palavra (`white-space:nowrap` em chips e segmentados); **ícones dos botões dos módulos não giram mais** ao recolher (o seletor `.card-h svg:last-child` pegava os ícones das ações; agora `.card-h > svg:last-child`); regras de autotile em 8 por linha. 144 verificações.

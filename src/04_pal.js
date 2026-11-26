@@ -1,5 +1,8 @@
 /* ======================= paletas e cores recentes ======================= */
 const PALETTES = {
+  // do Renato (Cosmic Valley): as primeiras da lista; Pogo City é a paleta inicial
+  'Pogo City': '051326,1f275e,58272d,5e5a24,5a295f,186095,a1572c,655696,a05261,2394a5,9f9f1e,5c2ae0,e75e23,97599e,6492a4,e0625b,da2f9d,f1a022,5ca1d5,a160d2,999ca9,df63a2,f1d622,f09f60,22e5ec,e264d8,eda0a2,f8db60,5cecf1,e99ddb,f7dca1,9ee8f0,fafafb',
+  'Apartment': '020d23,082947,1c3372,1c639f,252a6c,3b425c,707a9e,c5d0e3,adaba3,e6ecf8,5aefe6,00e7ff,12a6bc,00a3ff,5c3e93,a163e6,c26cff,c64e8e,ff6ee7,f5ab76,ff8a2a,e84d2e,ffd166,fcf4bc,1e7a55,2faa6e,a8d463,bbe2cd',
   'Sweetie 16': '1a1c2c,5d275d,b13e53,ef7d57,ffcd75,a7f070,38b764,257179,29366f,3b5dc9,41a6f6,73eff7,f4f4f4,94b0c2,566c86,333c57',
   'PICO-8': '000000,1d2b53,7e2553,008751,ab5236,5f574f,c2c3c7,fff1e8,ff004d,ffa300,ffec27,00e436,29adff,83769c,ff77a8,ffccaa',
   'Endesga 32': 'be4a2f,d77643,ead4aa,e4a672,b86f50,733e39,3e2731,a22633,e43b44,f77622,feae34,fee761,63c74d,3e8948,265c42,193c3e,124e89,0099db,2ce8f5,ffffff,c0cbdc,8b9bb4,5a6988,3a4466,262b44,181425,ff0044,68386c,b55088,f6757a,e8b796,c28569',
@@ -15,9 +18,10 @@ const PALETTES = {
   'CafeArisuki': '49223f,cc2b46,f37e7e,e7a794,fbf1d1,f6cda3,ca833c,8a4646,538f5a,b4accc', // Arisuki
 };
 const FAVORITES = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#ec4899', '#78716c', '#a8a29e', '#3f3f46', '#f5f5f4'];
-let userPals = LS.get('userPals', {}), palName = LS.get('palName', 'Sweetie 16');
+const DEFAULT_PAL = 'Pogo City'; // paleta inicial (do Renato)
+let userPals = LS.get('userPals', {}), palName = LS.get('palName', DEFAULT_PAL);
 const allPals = () => Object.assign({}, PALETTES, userPals);
-const palList = (n) => (allPals()[n] || PALETTES['Sweetie 16']).split(',').filter(Boolean).map(h => '#' + h.toLowerCase());
+const palList = (n) => (allPals()[n] || PALETTES[DEFAULT_PAL]).split(',').filter(Boolean).map(h => '#' + h.toLowerCase());
 let recent = LS.get('recentColors', []);
 function pushRecent(hex) { hex = hex.toLowerCase(); recent = [hex, ...recent.filter(c => c !== hex)].slice(0, 10); LS.set('recentColors', recent); }
 

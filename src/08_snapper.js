@@ -74,7 +74,7 @@ $('#sToN').onclick = () => { if (snapOut) { setNormalInput(snapOut, null); showV
 setupLoupe('s', $('#sLoupe'));
 
 /* ---------- prompt para o ChatGPT (sem API: só monta o texto para colar) ---------- */
-const P = Object.assign({ subj: '', size: 32, pal: 'Sweetie 16', view: 'frontal', outline: 'dark', fill: '80', extra: '' }, LS.get('prompt', {}));
+const P = Object.assign({ subj: '', size: 32, pal: DEFAULT_PAL, view: 'frontal', outline: 'dark', fill: '80', extra: '' }, LS.get('prompt', {}));
 function buildPrompt() {
   const n = P.size, blk = 1024 / n, b = Number.isInteger(blk) ? blk : blk.toFixed(2), pal = palList(P.pal), subj = P.subj.trim() || '[describe the object]';
   const darkest = pal.slice().sort((a, c) => { const l = (h) => { const [r, g, bb] = hex2rgb(h); return .299 * r + .587 * g + .114 * bb; }; return l(a) - l(c); })[0];
