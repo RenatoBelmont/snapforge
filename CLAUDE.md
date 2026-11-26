@@ -1,6 +1,6 @@
 # Snapforge — guia do projeto (para o Claude Code)
 
-Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.9.0**.
+Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.9.1**.
 
 Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad com Apple Pencil** e também no Windows (Chrome/Firefox). Interface 100% em **português do Brasil**.
 
@@ -163,6 +163,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 
 ## Histórico
 
+- **1.9.1** — ícone de **importar** (seta entrando na caixa, `ico('import')`) em "Importar PNG" do Tilemap (usava a seta de envio, para fora) e em "Do Lospec" (usava o mesmo ícone de Exportar). Regra: `import` = trazer para dentro do app; `download` = exportar/baixar.
 - **1.9.0** — **vários tilesets no mesmo mapa**: antes o mapa tinha um tileset só e trocá-lo redesenhava tudo o que já estava pintado com o tileset novo. Agora cada célula lembra de qual tileset veio (schema 2 do mapa; o schema 1 continua abrindo igual); lista "Tilesets deste mapa"; conta-gotas troca de tileset; export Tiled com vários tilesets. 151 verificações.
 - **1.8.0** — **Tilesets do Sprout Lands** (Cup Nooble) no Tilemap, em listas, no lugar do tileset de exemplo; Grama como padrão. Ajustes pedidos no iPad: **bigorna** sobre uma placa escura (sumia no tema claro); barra de comandos com espaço menor entre botões e o **nome do projeto encolhendo com "…"** para o botão de tela cheia nunca ser cortado (editor e Tilemap iguais); **xadrez do fundo do Tilemap preso ao mapa** (antes as casas tinham 16 px fixos de tela e escorregavam no zoom); módulo **Canvas em 2º** no painel; "Manter desenho/Redimensionar" como chips sem quebra de palavra (`white-space:nowrap` em chips e segmentados); **ícones dos botões dos módulos não giram mais** ao recolher (o seletor `.card-h svg:last-child` pegava os ícones das ações; agora `.card-h > svg:last-child`); regras de autotile em 8 por linha. 144 verificações.
 - **1.7.1** — **toques com 2/3 dedos como no Procreate**: com "Dedo pinta" o toque de dois dedos não desfazia (o 1º dedo, que chega antes, começava um traço e o gesto era tratado como pinça); agora só vira pinça se o 1º dedo já desenhava há > 250 ms ou > 14 px. Segurar 2/3 dedos desfaz/refaz em sequência, acelerando; o toque não mexe mais no zoom. No Tilemap, começar um traço apagava a pilha de refazer mesmo quando o traço era cancelado ou não mudava nada (corrigido como no editor). 135 verificações.

@@ -964,7 +964,7 @@ pre.prompt{white-space:pre-wrap;font:12px/1.55 var(--mono);background:rgb(var(--
 </script>
 <script>
 'use strict';
-const VERSION = '1.9.0';
+const VERSION = '1.9.1';
 /* ---- 00_base.js ---- */
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -997,6 +997,7 @@ const IC = {
   minimize:'<path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/>',
   download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/>',
   upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/>',
+  import:'<path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"/>', // seta entrando na caixa: trazer para dentro do app (≠ download = exportar)
   file:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
   grid:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>',
   onion:'<rect x="3" y="7" width="12" height="12" rx="2" opacity=".45"/><rect x="9" y="3" width="12" height="12" rx="2"/>',
@@ -1674,7 +1675,7 @@ function renderColor() {
     <div class="row"><div id="palPickHost" style="flex:1;min-width:0"></div>${tbx2('palAdd', 'plus', 'Adicionar a cor atual à paleta')}${tbx2('palDel', 'trash', 'Remover a cor selecionada da paleta', 'danger')}</div>
     <div class="swatches">${pal.map((h, i) => `<button class="sw${i === st.swatch ? ' on' : ''}" style="background:${h}" data-sw="${i}" title="${h}"></button>`).join('')}</div>
     ${recent.length ? `<div class="row" style="gap:6px"><span class="small muted">Recentes</span><div class="recent">${recent.slice(0, 9).map(r => `<button style="background:${r}" data-rc="${r}" title="${r}"></button>`).join('')}</div></div>` : ''}
-    <div class="row wrap"><button class="btn sm" data-pc="palFromImg">Extrair do desenho</button><button class="btn sm" data-pc="palHex">Colar hex</button><button class="btn sm" data-pc="palLospec" title="Importar uma paleta do Lospec pelo link ou pelo nome (precisa de internet)">${ico('download')}Do Lospec</button><button class="btn sm" data-pc="palFile" title="Abrir arquivo de paleta .hex, .gpl ou .pal (funciona sem internet)">${ico('folder')}Arquivo</button></div>`;
+    <div class="row wrap"><button class="btn sm" data-pc="palFromImg">Extrair do desenho</button><button class="btn sm" data-pc="palHex">Colar hex</button><button class="btn sm" data-pc="palLospec" title="Importar uma paleta do Lospec pelo link ou pelo nome (precisa de internet)">${ico('import')}Do Lospec</button><button class="btn sm" data-pc="palFile" title="Abrir arquivo de paleta .hex, .gpl ou .pal (funciona sem internet)">${ico('folder')}Arquivo</button></div>`;
   palPick = palettePicker($('#palPickHost'), { value: palName, onChange: (v) => { palName = v; LS.set('palName', palName); st.swatch = -1; renderColor(); renderFaixa(); } });
   $('#hexIn').addEventListener('input', (e) => { let v = e.target.value.trim(); if (v[0] !== '#') v = '#' + v; if (/^#[0-9a-f]{6}$/i.test(v)) setColor([...hex2rgb(v), st.color[3]], true); });
   $('#hexIn').addEventListener('change', () => { pushRecent(rgb2hex(...st.color.slice(0, 3))); renderColor(); });
@@ -2336,7 +2337,7 @@ function renderTSide() {
   // ordem: Camadas logo abaixo do tileset (criar autotile e tocar nas regras sem rolar o painel no iPad); Mapa, o menos usado, por último
   $('#tSide').innerHTML = tCard('tileset', 'Tileset') + tCard('tcamadas', 'Camadas', tb3('tAdd', 'plus', 'Nova camada') + tb3('tAddAuto', 'auto', 'Nova camada de autotile') + tb3('tDel', 'trash', 'Excluir camada', 'danger')) + tCard('tpincel', 'Pincel') + tCard('mapa', 'Mapa');
   const tb = $('#tb-tileset');
-  tb.innerHTML = `<div class="row wrap"><button class="btn sm" data-tp="tsImport">${ico('upload')}Importar PNG</button><button class="btn sm" data-tp="tsEditor">Do editor</button><button class="btn sm" data-tp="tsLib" data-pp-trigger title="Tilesets prontos do Sprout Lands, separados por listas">${ico('tiles')}Prontos${ico('chevron')}</button></div>
+  tb.innerHTML = `<div class="row wrap"><button class="btn sm" data-tp="tsImport">${ico('import')}Importar PNG</button><button class="btn sm" data-tp="tsEditor">Do editor</button><button class="btn sm" data-tp="tsLib" data-pp-trigger title="Tilesets prontos do Sprout Lands, separados por listas">${ico('tiles')}Prontos${ico('chevron')}</button></div>
     ${tm.tilesets.length > 1 ? `<div class="lbl"><span>Tilesets deste mapa <span class="muted" style="font-weight:500">(toque para pintar)</span></span><div class="chips" id="tSets">${tm.tilesets.map((s, i) => `<button data-tset="${i}" class="${i === tm.ts ? 'on' : ''}" style="font-family:var(--ui)" title="${esc(s.name)}">${esc(s.name.replace(/^Sprout Lands · /, ''))}</button>`).join('')}</div></div>` : ''}
     <div class="lbl">Tamanho do tile<div class="chips" id="tTileSz">${TILE_SIZES.map(s => `<button data-ts="${s}" class="${tm.tw === s && tm.th === s ? 'on' : ''}">${s}</button>`).join('')}</div></div>
     ${tsImg ? `<div class="tileset-wrap checker" id="tsWrap"><canvas class="px" id="tsCv"></canvas></div><span class="hint">${tsCols * tsRows} tiles · toque num tile ou arraste para selecionar vários (vira um carimbo). Seleção: ${ts.sel.w}×${ts.sel.h}.</span>${L && L.auto ? '<div id="tb-auto" class="stack" style="gap:8px"></div>' : ''}` : '<div class="note">Importe um tileset (PNG com os tiles em grade) ou use o de exemplo para testar.</div>'}`;
