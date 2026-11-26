@@ -1,6 +1,6 @@
 # Snapforge — guia do projeto (para o Claude Code)
 
-Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.4.0**.
+Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.5.0**.
 
 Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad com Apple Pencil** e também no Windows (Chrome/Firefox). Interface 100% em **português do Brasil**.
 
@@ -79,7 +79,7 @@ Scripts clássicos concatenados, todos no mesmo escopo global (sem `import`/`exp
 | `01_icons.js` | Ícones SVG de traço (estilo Lucide), `ico(nome)`, `paintIcons()` troca `<i data-ic>` por SVG |
 | `02_utils.js` | `toast`, `busy`/`withBusy` (card de carregamento central), `modal`/`confirmar`, leitura de arquivos, `saveBlob` (usa a folha de compartilhar no iPad), `fitImage`, `keyMagenta`, `LS` (localStorage com prefixo `snapforge.` e migração das chaves antigas `pixelaria.`) |
 | `03_engine.js` | Worker dos motores (`runEngine('snap'|'normal', img, opts)`) com fallback na thread principal |
-| `04_pal.js` | Paletas embutidas (Sweetie 16, PICO-8, Endesga 32, Game Boy, 1-bit), paletas do usuário, cores recentes |
+| `04_pal.js` | Paletas embutidas (Sweetie 16, PICO-8, Endesga 32, Game Boy, 1-bit + 8 do Lospec com o autor em comentário: RETURN 20, Minty chip, CC-29, Resurrect 64, SLSO8, Lost Century, Twilight 5, CafeArisuki), paletas do usuário, cores recentes |
 | `04b_palpicker.js` | Seletor de paleta **com prévia das cores** (`palettePicker(host, {value, auto, doc, onChange})`) |
 | `05_doc.js` | Documento do editor (`doc`: camadas × quadros de `Uint8ClampedArray` RGBA), estado `st`, histórico (`pushHist/undo/redo`, snapshots completos, máx. 80), `composite()` |
 | `06_draw_input.js` | Render do canvas (zoom/pan, xadrez, grade, simetria, seleção, prévia do pincel), ferramentas de desenho, **toda a entrada por ponteiro** (Pencil, toque, mouse, gestos, lupa do conta-gotas) |
@@ -156,6 +156,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 
 ## Histórico
 
+- **1.5.0** — 8 paletas do Lospec embutidas (RETURN 20, Minty chip, CC-29, Resurrect 64, SLSO8, Lost Century, Twilight 5, CafeArisuki), conferidas cor a cor com o JSON oficial e com os nomes/autores de lá. Avaliada a API do Lospec (ver Backlog).
 - **1.4.0** — **design "portátil" vira o oficial** (escolha do Renato após comparar na 1.3.0): `src/v2/shell.html` → `src/shell.html`, fileira de paleta/LCD integrados ao app (`07e_prow.js`, sem os encaixes provisórios), `DESIGN.md` na raiz, regras 2–3 atualizadas, build com uma interface só. `dist/pwa-v2/` virou redirecionamento para `dist/pwa/` com um service worker que limpa o cache e se desinstala (para quem instalou o "Snapforge 2").
 - **1.3.0** — **interface nova em comparação** (`src/v2/`, `dist/pwa-v2/`), feita com as skills de design instaladas no repositório (frontend-design, ui-ux-pro-max, impeccable): mundo "portátil", trilho em uma coluna, fileira de paleta, faixa LCD, LED de salvamento, contraste medido ≥ 4,5:1 nos dois temas; a bateria e2e roda nas duas interfaces. Na atual nada muda além da versão (e o texto vazio do Snapper agora segue o nome do botão).
 - **1.2.4** — correção de verdade do balde do Tilemap: `tFill` agora diz se mudou algo e o traço é marcado como alterado — antes o `tEnd` achava que nada mudou, não redesenhava o mapa **e descartava o passo de desfazer** (o balde nunca foi desfazível). Teste e2e reproduz a sequência relatada (balde → tile → mapa) com o mapa já redesenhado.
@@ -173,7 +174,8 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 - Exportar direto para **cena do Godot (.tscn/TileSet)** e **Unity Tilemap** (hoje: via Tiled).
 - Tilemap: ferramenta de seleção/mover, atributos/colisão por tile (o Sprite Fusion tem "Attributes"), mapa infinito, redimensionar com âncora.
 - Exportar **GIF** da animação.
-- Importar paletas de arquivo (`.gpl`, `.hex`, `.pal` do Lospec).
+- Importar paletas de arquivo (`.gpl`, `.hex`, `.pal` do Lospec) — funciona offline, sem exceção às regras.
+- **API do Lospec** (avaliada na 1.5.0): `https://lospec.com/palette-list/<slug>.json` devolve `{name, author, colors[]}` com CORS liberado (`access-control-allow-origin: *`), então o app conseguiria importar uma paleta colando o link ou o nome. A busca/listagem (`/palette-list/load?...`) **não** tem CORS: não dá para navegar no catálogo de dentro do app sem um servidor no meio. Usar exigiria uma exceção à regra 4 (uma chamada de rede só quando o usuário pede; a paleta fica salva e o resto continua offline). Aguardando decisão do Renato.
 - Pressão da Pencil (ex.: tamanho do pincel) — hoje é ignorada de propósito.
 - Projetos grandes podem estourar o `localStorage` (~5 MB): migrar para IndexedDB se acontecer.
 - Rodar a bateria de testes no WebKit.

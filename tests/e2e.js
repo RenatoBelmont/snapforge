@@ -186,6 +186,9 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const t0i = zb.indexOf('{\n "compressionlevel"'), t1i = zb.indexOf(Buffer.from([0x50, 0x4b, 3, 4]), t0i); const tmj = JSON.parse(zb.slice(t0i, t1i).toString('utf8')); ok(tmj.layers.length === 2 && tmj.tilesets[0].columns === 8 && tmj.layers[0].data.length === 1024, '.tmj válido com as 2 camadas');
   await p.screenshot({ path: path.join(SHOTS, 'v3_tile.png') });
   await p.reload(); await sleep(500); const rs = await p.evaluate(() => [tm.layers.length, tm.layers.map(l => l.auto).join(), tsCols, tm.mw]); ok(rs[0] === 2 && rs[1] === 'false,true' && rs[2] === 8, 'mapa e tileset restaurados após recarregar ' + rs);
+  // ---- paletas do Lospec (1.5.0)
+  ok(await p.evaluate(() => [['RETURN 20', 20], ['Minty chip', 30], ['CC-29', 29], ['Resurrect 64', 64], ['SLSO8', 8], ['Lost Century', 16], ['Twilight 5', 5], ['CafeArisuki', 10]].every(([n, k]) => PALETTES[n] && palList(n).length === k && palList(n).every(c => /^#[0-9a-f]{6}$/.test(c)))), 'paletas do Lospec embutidas com o número certo de cores');
+  ok(await p.evaluate(() => { const pv = palName; palName = 'Resurrect 64'; renderColor(); renderFaixa(); const n = [document.querySelectorAll('#cb-cor .sw').length, document.querySelectorAll('#pRow button.c').length]; palName = pv; renderColor(); renderFaixa(); return n.join(); }) === '64,64', 'Resurrect 64 aparece inteira no painel e na fileira de paleta');
   // ---- correções da 1.2.1
   await p.click('.tab[data-v=snap]'); await sleep(150);
   const nl0 = await p.evaluate(() => doc.layers.length);

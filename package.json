@@ -1,6 +1,6 @@
 {
   "name": "snapforge",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "Snapforge — editor de pixel art, tilemap, Pixel Snapper e normal maps (HTML/CSS/JS puro, roda no iPad)",
   "scripts": {
