@@ -171,6 +171,12 @@ canvas.px{image-rendering:pixelated;image-rendering:crisp-edges}
 .area{flex:1;min-width:0;position:relative;overflow:hidden;touch-action:none;border-radius:16px;background:rgb(var(--bezel));
   box-shadow:inset 0 2px 10px rgb(0 0 0/.45),0 0 0 1px rgb(var(--edge)),0 1px 0 1px rgb(255 255 255/.06)}
 .area canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+/* barra de seleção: flutua sobre a tela, no topo, só enquanto há seleção ou algo copiado (não disputa espaço com a barra de comandos) */
+.selfloat{position:absolute;top:10px;left:50%;translate:-50% 0;z-index:2;display:flex;align-items:center;gap:4px;padding:5px 6px;max-width:calc(100% - 20px);
+  border-radius:12px;background:rgb(var(--case-hi));border:1px solid rgb(var(--edge));box-shadow:0 6px 18px -6px rgb(0 0 0/.45);animation:pop .16s var(--ease)}
+.selfloat:empty{display:none}
+.selfloat .sep{display:none}
+.selfloat>.mono{padding:0 6px 0 4px;color:rgb(var(--ink-2))}
 /* faixa LCD: o estado do documento em letra de pixel */
 .foot{display:flex;align-items:center;gap:18px;height:30px;padding:0 14px;flex:none;border-radius:9px;background:rgb(var(--lcd));color:rgb(var(--lcd-ink));
   font:400 11px/1 var(--pix);letter-spacing:.02em;white-space:nowrap;overflow:hidden;box-shadow:inset 0 1px 4px rgb(0 0 0/.3),0 0 0 1px rgb(var(--edge))}
@@ -366,7 +372,6 @@ pre.prompt{white-space:pre-wrap;font:12px/1.55 var(--mono);background:rgb(var(--
       <button class="btn sm" data-f="import" title="Importar imagem"><i data-ic="image"></i><span class="lbl-t">Importar</span></button>
       <button class="btn sm pri" data-f="png" title="Exportar PNG"><i data-ic="download"></i><span class="lbl-t keep">Exportar PNG</span></button>
       <span class="spacer"></span>
-      <span id="selBar" class="row" style="gap:4px"></span>
       <button class="btn sm" id="penBtn" title="Só a Apple Pencil pinta; dedo e palma só movem e dão zoom"><i data-ic="pen"></i><span class="lbl-t" id="penTxt"></span></button>
       <button class="btn sm ic" id="undoBtn" title="Desfazer (⌘Z · toque com dois dedos)" aria-label="Desfazer"><i data-ic="undo"></i></button>
       <button class="btn sm ic" id="redoBtn" title="Refazer (⇧⌘Z · toque com três dedos)" aria-label="Refazer"><i data-ic="redo"></i></button>
@@ -378,7 +383,7 @@ pre.prompt{white-space:pre-wrap;font:12px/1.55 var(--mono);background:rgb(var(--
       <button class="btn sm ic" id="focoBtn" title="Tela cheia (F)" aria-label="Tela cheia"><i data-ic="maximize"></i></button>
     </div>
     <div class="stage-mid">
-      <div class="area" id="area"><canvas id="cv"></canvas></div>
+      <div class="area" id="area"><canvas id="cv"></canvas><div class="selfloat" id="selBar" aria-label="Seleção"></div></div>
       <div class="faixa" id="faixa"></div>
     </div>
     <div class="prow" id="pRow" aria-label="Paleta"></div>
@@ -405,7 +410,7 @@ pre.prompt{white-space:pre-wrap;font:12px/1.55 var(--mono);background:rgb(var(--
       <button class="btn sm mono" id="tZoomLbl" title="Ajustar à tela (0)" style="min-width:66px">100%</button>
       <button class="btn sm ic zbtn" id="tZoomIn" title="Aumentar zoom (+)" aria-label="Aumentar zoom"><i data-ic="plus"></i></button>
     </div>
-    <div class="stage-mid"><div class="area" id="tArea"><canvas id="tcv"></canvas></div></div>
+    <div class="stage-mid"><div class="area" id="tArea"><canvas id="tcv"></canvas><div class="selfloat" id="tSelBar" aria-label="Seleção do mapa"></div></div></div>
     <div class="foot"><span id="tSize"></span><span><span class="lcd-k">célula</span><span id="tPos">—</span></span></div>
   </section>
   <aside class="side" id="tSide"></aside>
@@ -471,7 +476,7 @@ pre.prompt{white-space:pre-wrap;font:12px/1.55 var(--mono);background:rgb(var(--
 <script id="engines-src">/*ENGINES*/</script>
 <script>
 'use strict';
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 /*@JS*/
 </script>
 </body>

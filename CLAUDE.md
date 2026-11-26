@@ -1,6 +1,6 @@
 # Snapforge — guia do projeto (para o Claude Code)
 
-Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.6.0**.
+Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.7.0**.
 
 Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad com Apple Pencil** e também no Windows (Chrome/Firefox). Interface 100% em **português do Brasil**.
 
@@ -32,7 +32,7 @@ src/
   00_base.js … 11_init.js   o app, concatenado em ordem alfabética
   fonts/             Silkscreen (OFL), embutida em base64 no build — sem rede
 tests/
-  e2e.js             115 verificações no navegador (Playwright + Chromium)
+  e2e.js             128 verificações no navegador (Playwright + Chromium)
   engines-vs-rust.js compara os motores JS com os binários Rust originais
   snapper-structure.js  idem, checando grade e cor-base célula a célula
   fixtures/          imagens de teste + make_fixtures.js que as gera
@@ -103,7 +103,7 @@ Tudo em `localStorage` (por navegador/aparelho), chaves com prefixo `snapforge.`
 | `doc` | projeto do editor (mesmo formato do `.snapforge.json`) |
 | `tilemap` | mapa + tileset em data URL (mesmo formato do `.tilemap.json`) |
 | `palName`, `userPals`, `recentColors` | paletas e cores |
-| `penOnly`, `penSeen`, `faixa`, `cards`, `tcards`, `view`, `dark`, `loupe.*`, `s.fit`, `prompt`, `nOpts`, `brush` (1–16), `brushShape` (`round`/`square`) | preferências de interface |
+| `penOnly`, `penSeen`, `faixa`, `cards`, `tcards`, `view`, `dark`, `loupe.*`, `s.fit`, `prompt`, `nOpts`, `brush` (1–16), `brushShape` (`round`/`square`), `tBrush` (1–8, pincel do mapa) | preferências de interface |
 
 - **Projeto do editor** (`app: 'snapforge'`, `schema: 2`): `{name, w, h, fps, layers:[{name, visible, opacity, locked}], frames:[[base64 RGBA por camada]], cur, palName}`. A importação aceita também `app: 'pixelaria'` (versões 1.0.x).
 - **Mapa** (`app: 'snapforge-tilemap'`, `schema: 1`): `{name, tw, th, mw, mh, tileset:{name, url(dataURL), w, h}, layers:[{name, visible, auto, data:[índice|-1], cells?, rules?[16]}]}`.
@@ -138,7 +138,10 @@ Para reverificar: clone os dois repositórios numa pasta `sf-repos/` ao lado do 
 ## Tilemap
 
 - Tileset: PNG em grade, tile de 8 a 64 px (botões) ou do editor/Snapper. Tileset de exemplo gerado em código (`demoTileset`).
-- Ferramentas: carimbo (seleção retangular de vários tiles; toque pinta o bloco, arrastar ladrilha a partir do ponto inicial), borracha, balde, retângulo, conta-gotas de tile, mão; modo **aleatório** (sorteia da seleção).
+- Ferramentas: carimbo (seleção retangular de vários tiles; toque pinta o bloco, arrastar ladrilha a partir do ponto inicial), borracha, balde, retângulo, conta-gotas de tile, **seleção** (S), mão; modo **aleatório** (sorteia da seleção).
+- **Pincel do mapa** (`ts.brush`, 1–8 tiles, quadrado N×N, módulo "Pincel" e teclas `[` `]`): vale para tile único, aleatório, autotile e borracha (`tBrushApplies`/`tPaintAt`); um carimbo de vários tiles usa o próprio tamanho.
+- **Seleção no mapa** (`ts.msel`, camada atual): arrastar seleciona; arrastar dentro move o conteúdo (`tShiftSel`, um passo de desfazer; o que sai do mapa se perde, como no editor); toque sem arrastar tira a seleção. Copiar/recortar/colar/apagar (`tCopy`, `tPaste`, `tDeleteSel`) pela barra flutuante ou ⌘C/⌘X/⌘V/Delete, ⌘A seleciona tudo, Esc tira. Colar entre tipos de camada: autotile → normal cola o tile resolvido; normal → autotile vira "tem terreno"; células vazias do recorte não apagam o que está embaixo. `msel` entra nos snapshots do desfazer.
+- Ordem do painel: Tileset, **Camadas**, Pincel, Mapa — Camadas logo abaixo do tileset para criar autotile e tocar nas regras sem rolar o painel no iPad.
 - **Autotile de 16 combinações** (máscara de 4 vizinhos: cima=1, direita=2, baixo=4, esquerda=8). Cada camada de autotile guarda `cells` (tem terreno ou não) e `rules[16]` (tile de cada máscara); falta de regra cai em `rules[15]`. As regras são atribuídas tocando no quadrado e depois no tile, **no mesmo card do tileset** (para não rolar o painel no iPad).
 - Exporta: **Tiled `.tmj`** (gid = índice + 1, 0 = vazio; vem num `.zip` com `tileset.png`, ZIP sem compressão feito à mão em `zipStore`), PNG e JSON simples. Camadas de autotile saem resolvidas.
 - Redimensionar o mapa ancora no canto superior esquerdo (corta o resto; ⌘Z desfaz).
@@ -157,6 +160,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 
 ## Histórico
 
+- **1.7.0** — Tilemap: **ferramenta de seleção** (arrastar seleciona, arrastar dentro move, copiar/recortar/colar/apagar, ⌘A, Esc, tudo com desfazer) e **tamanho de pincel** 1–8 tiles. **Barra de seleção flutuante** sobre a tela, no editor e no mapa (antes ficava na barra de comandos e, com seleção ativa, a do editor transbordava 162 px e escondia zoom/tela cheia). Seleção, cursor e grade maior desenhados em **ameixa** (`cssRgb('--plum')`), não mais no âmbar antigo. Painel do mapa reordenado (Camadas logo abaixo do tileset). 128 verificações.
 - **1.6.0** — **importar paletas**: "Do Lospec" (link ou nome; exceção de rede da regra 4, liberada pelo Renato) e "Arquivo" (.hex, .gpl, .pal JASC/RIFF, offline; seletor sem filtro de extensão porque o Safari do iPad deixa cinza .gpl/.pal). **Pincéis**: tamanhos 1, 2, 3, 4, 5, 6, 8, 10, 12 e 16 px (botões e teclas `[` `]`), formato redondo ou quadrado em qualquer tamanho (antes os pares eram sempre quadrados), ambos salvos no aparelho. Testes com o Lospec simulado (115 verificações).
 - **1.5.0** — 8 paletas do Lospec embutidas (RETURN 20, Minty chip, CC-29, Resurrect 64, SLSO8, Lost Century, Twilight 5, CafeArisuki), conferidas cor a cor com o JSON oficial e com os nomes/autores de lá. Avaliada a API do Lospec (ver Backlog).
 - **1.4.0** — **design "portátil" vira o oficial** (escolha do Renato após comparar na 1.3.0): `src/v2/shell.html` → `src/shell.html`, fileira de paleta/LCD integrados ao app (`07e_prow.js`, sem os encaixes provisórios), `DESIGN.md` na raiz, regras 2–3 atualizadas, build com uma interface só. `dist/pwa-v2/` virou redirecionamento para `dist/pwa/` com um service worker que limpa o cache e se desinstala (para quem instalou o "Snapforge 2").
@@ -174,7 +178,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 
 - Autotile no padrão de **47 peças** (blob) para tilesets prontos nesse layout.
 - Exportar direto para **cena do Godot (.tscn/TileSet)** e **Unity Tilemap** (hoje: via Tiled).
-- Tilemap: ferramenta de seleção/mover, atributos/colisão por tile (o Sprite Fusion tem "Attributes"), mapa infinito, redimensionar com âncora.
+- Tilemap: atributos/colisão por tile (o Sprite Fusion tem "Attributes"), mapa infinito, redimensionar com âncora.
 - Exportar **GIF** da animação.
 - Navegar/buscar no catálogo do Lospec de dentro do app: o endpoint de listagem (`/palette-list/load?...`) não tem CORS, então só com um servidor no meio (hoje a importação é por link ou nome).
 - Pressão da Pencil (ex.: tamanho do pincel) — hoje é ignorada de propósito.

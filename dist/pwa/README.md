@@ -1,4 +1,4 @@
-# Snapforge — pixel art, sprites e tilemaps (v1.6.0)
+# Snapforge — pixel art, sprites e tilemaps (v1.7.0)
 
 Editor de pixel art com camadas e animação, editor de tilemap com autotile (exporta para o Tiled), Pixel Snapper e normal maps. HTML, CSS e JS puro, num arquivo só, sem dependências. Funciona offline.
 

@@ -212,7 +212,8 @@ const KEYMAP = { b: 'pencil', e: 'eraser', g: 'fill', i: 'pick', l: 'line', u: '
 const viewOn = (v) => $('#v-' + v).classList.contains('on');
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { if ($('#modal').classList.contains('on')) { modal.cancel && modal.cancel(); e.preventDefault(); return; } if (cpEl) { closeColorPicker(); e.preventDefault(); return; } if (ppOpen) { closePP(); e.preventDefault(); return; }
-    if (viewOn('editor') && selRect) { selRect = null; render(); updateBar(); e.preventDefault(); return; } if (document.body.classList.contains('foco')) { toggleFoco(); e.preventDefault(); } return; }
+    if (viewOn('editor') && selRect) { selRect = null; render(); updateBar(); e.preventDefault(); return; }
+    if (viewOn('tile') && ts.msel) { tDeselect(); e.preventDefault(); return; } if (document.body.classList.contains('foco')) { toggleFoco(); e.preventDefault(); } return; }
   if (e.target.matches('input:not([type=checkbox]):not([type=range]):not([type=color]),textarea,select') || $('#modal').classList.contains('on')) return;
   if (e.target.matches('input')) e.target.blur();
   if (viewOn('tile')) { tileKey(e); return; }

@@ -23,11 +23,11 @@ function draw() {
   if (st.grid && z >= 6) { cx.strokeStyle = dark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.08)'; cx.lineWidth = 1; cx.beginPath();
     for (let x = 0; x <= doc.w; x++) { const X = Math.round(st.ox + x * z) + .5; cx.moveTo(X, st.oy); cx.lineTo(X, st.oy + H); }
     for (let y = 0; y <= doc.h; y++) { const Y = Math.round(st.oy + y * z) + .5; cx.moveTo(st.ox, Y); cx.lineTo(st.ox + W, Y); } cx.stroke(); }
-  if (st.majorGrid > 1 && z >= 3) { cx.strokeStyle = dark ? 'rgba(245,158,11,.35)' : 'rgba(217,119,6,.35)'; cx.beginPath();
+  if (st.majorGrid > 1 && z >= 3) { cx.strokeStyle = cssRgb('--plum', .45); cx.beginPath();
     for (let x = st.majorGrid; x < doc.w; x += st.majorGrid) { const X = Math.round(st.ox + x * z) + .5; cx.moveTo(X, st.oy); cx.lineTo(X, st.oy + H); }
     for (let y = st.majorGrid; y < doc.h; y += st.majorGrid) { const Y = Math.round(st.oy + y * z) + .5; cx.moveTo(st.ox, Y); cx.lineTo(st.ox + W, Y); } cx.stroke(); }
   if (st.mirrorX || st.mirrorY) { cx.strokeStyle = 'rgba(244,114,182,.75)'; cx.setLineDash([4, 4]); cx.beginPath(); if (st.mirrorX) { cx.moveTo(st.ox + W / 2, st.oy); cx.lineTo(st.ox + W / 2, st.oy + H); } if (st.mirrorY) { cx.moveTo(st.ox, st.oy + H / 2); cx.lineTo(st.ox + W, st.oy + H / 2); } cx.stroke(); cx.setLineDash([]); }
-  if (selRect) { cx.lineWidth = 1; cx.strokeStyle = '#fff'; cx.strokeRect(st.ox + selRect.x * z + .5, st.oy + selRect.y * z + .5, selRect.w * z, selRect.h * z); cx.strokeStyle = '#f59e0b'; cx.setLineDash([5, 4]); cx.strokeRect(st.ox + selRect.x * z + .5, st.oy + selRect.y * z + .5, selRect.w * z, selRect.h * z); cx.setLineDash([]); }
+  if (selRect) { cx.lineWidth = 1; cx.strokeStyle = '#fff'; cx.strokeRect(st.ox + selRect.x * z + .5, st.oy + selRect.y * z + .5, selRect.w * z, selRect.h * z); cx.strokeStyle = `rgb(${cs.getPropertyValue('--plum').trim().replace(/ /g, ',')})`; cx.setLineDash([5, 4]); /* ameixa = cor de seleção do DESIGN.md */ cx.strokeRect(st.ox + selRect.x * z + .5, st.oy + selRect.y * z + .5, selRect.w * z, selRect.h * z); cx.setLineDash([]); }
   if (hover && ['pencil', 'eraser', 'line', 'rect', 'ellipse'].includes(st.tool) && !strokeActive()) {
     cx.strokeStyle = dark ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.75)'; cx.lineWidth = 1;
     for (const [a, b] of stampPoints(hover[0], hover[1])) if (inside(a, b)) cx.strokeRect(st.ox + a * z + .5, st.oy + b * z + .5, z - 1, z - 1);

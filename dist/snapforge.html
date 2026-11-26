@@ -171,6 +171,12 @@ canvas.px{image-rendering:pixelated;image-rendering:crisp-edges}
 .area{flex:1;min-width:0;position:relative;overflow:hidden;touch-action:none;border-radius:16px;background:rgb(var(--bezel));
   box-shadow:inset 0 2px 10px rgb(0 0 0/.45),0 0 0 1px rgb(var(--edge)),0 1px 0 1px rgb(255 255 255/.06)}
 .area canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+/* barra de seleção: flutua sobre a tela, no topo, só enquanto há seleção ou algo copiado (não disputa espaço com a barra de comandos) */
+.selfloat{position:absolute;top:10px;left:50%;translate:-50% 0;z-index:2;display:flex;align-items:center;gap:4px;padding:5px 6px;max-width:calc(100% - 20px);
+  border-radius:12px;background:rgb(var(--case-hi));border:1px solid rgb(var(--edge));box-shadow:0 6px 18px -6px rgb(0 0 0/.45);animation:pop .16s var(--ease)}
+.selfloat:empty{display:none}
+.selfloat .sep{display:none}
+.selfloat>.mono{padding:0 6px 0 4px;color:rgb(var(--ink-2))}
 /* faixa LCD: o estado do documento em letra de pixel */
 .foot{display:flex;align-items:center;gap:18px;height:30px;padding:0 14px;flex:none;border-radius:9px;background:rgb(var(--lcd));color:rgb(var(--lcd-ink));
   font:400 11px/1 var(--pix);letter-spacing:.02em;white-space:nowrap;overflow:hidden;box-shadow:inset 0 1px 4px rgb(0 0 0/.3),0 0 0 1px rgb(var(--edge))}
@@ -366,7 +372,6 @@ pre.prompt{white-space:pre-wrap;font:12px/1.55 var(--mono);background:rgb(var(--
       <button class="btn sm" data-f="import" title="Importar imagem"><i data-ic="image"></i><span class="lbl-t">Importar</span></button>
       <button class="btn sm pri" data-f="png" title="Exportar PNG"><i data-ic="download"></i><span class="lbl-t keep">Exportar PNG</span></button>
       <span class="spacer"></span>
-      <span id="selBar" class="row" style="gap:4px"></span>
       <button class="btn sm" id="penBtn" title="Só a Apple Pencil pinta; dedo e palma só movem e dão zoom"><i data-ic="pen"></i><span class="lbl-t" id="penTxt"></span></button>
       <button class="btn sm ic" id="undoBtn" title="Desfazer (⌘Z · toque com dois dedos)" aria-label="Desfazer"><i data-ic="undo"></i></button>
       <button class="btn sm ic" id="redoBtn" title="Refazer (⇧⌘Z · toque com três dedos)" aria-label="Refazer"><i data-ic="redo"></i></button>
@@ -378,7 +383,7 @@ pre.prompt{white-space:pre-wrap;font:12px/1.55 var(--mono);background:rgb(var(--
       <button class="btn sm ic" id="focoBtn" title="Tela cheia (F)" aria-label="Tela cheia"><i data-ic="maximize"></i></button>
     </div>
     <div class="stage-mid">
-      <div class="area" id="area"><canvas id="cv"></canvas></div>
+      <div class="area" id="area"><canvas id="cv"></canvas><div class="selfloat" id="selBar" aria-label="Seleção"></div></div>
       <div class="faixa" id="faixa"></div>
     </div>
     <div class="prow" id="pRow" aria-label="Paleta"></div>
@@ -405,7 +410,7 @@ pre.prompt{white-space:pre-wrap;font:12px/1.55 var(--mono);background:rgb(var(--
       <button class="btn sm mono" id="tZoomLbl" title="Ajustar à tela (0)" style="min-width:66px">100%</button>
       <button class="btn sm ic zbtn" id="tZoomIn" title="Aumentar zoom (+)" aria-label="Aumentar zoom"><i data-ic="plus"></i></button>
     </div>
-    <div class="stage-mid"><div class="area" id="tArea"><canvas id="tcv"></canvas></div></div>
+    <div class="stage-mid"><div class="area" id="tArea"><canvas id="tcv"></canvas><div class="selfloat" id="tSelBar" aria-label="Seleção do mapa"></div></div></div>
     <div class="foot"><span id="tSize"></span><span><span class="lcd-k">célula</span><span id="tPos">—</span></span></div>
   </section>
   <aside class="side" id="tSide"></aside>
@@ -950,11 +955,13 @@ pre.prompt{white-space:pre-wrap;font:12px/1.55 var(--mono);background:rgb(var(--
 </script>
 <script>
 'use strict';
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 /* ---- 00_base.js ---- */
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+/** Cor de um token do CSS (ex.: '--plum' → 'rgb(123,45,94)'), para desenhar no canvas com as cores do tema atual. */
+const cssRgb = (name, alpha = 1) => { const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim().replace(/ +/g, ','); return alpha < 1 ? `rgba(${v},${alpha})` : `rgb(${v})`; };
 
 /* ---- 01_icons.js ---- */
 /* ======================= ícones (traço no estilo Lucide) ======================= */
@@ -1305,11 +1312,11 @@ function draw() {
   if (st.grid && z >= 6) { cx.strokeStyle = dark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.08)'; cx.lineWidth = 1; cx.beginPath();
     for (let x = 0; x <= doc.w; x++) { const X = Math.round(st.ox + x * z) + .5; cx.moveTo(X, st.oy); cx.lineTo(X, st.oy + H); }
     for (let y = 0; y <= doc.h; y++) { const Y = Math.round(st.oy + y * z) + .5; cx.moveTo(st.ox, Y); cx.lineTo(st.ox + W, Y); } cx.stroke(); }
-  if (st.majorGrid > 1 && z >= 3) { cx.strokeStyle = dark ? 'rgba(245,158,11,.35)' : 'rgba(217,119,6,.35)'; cx.beginPath();
+  if (st.majorGrid > 1 && z >= 3) { cx.strokeStyle = cssRgb('--plum', .45); cx.beginPath();
     for (let x = st.majorGrid; x < doc.w; x += st.majorGrid) { const X = Math.round(st.ox + x * z) + .5; cx.moveTo(X, st.oy); cx.lineTo(X, st.oy + H); }
     for (let y = st.majorGrid; y < doc.h; y += st.majorGrid) { const Y = Math.round(st.oy + y * z) + .5; cx.moveTo(st.ox, Y); cx.lineTo(st.ox + W, Y); } cx.stroke(); }
   if (st.mirrorX || st.mirrorY) { cx.strokeStyle = 'rgba(244,114,182,.75)'; cx.setLineDash([4, 4]); cx.beginPath(); if (st.mirrorX) { cx.moveTo(st.ox + W / 2, st.oy); cx.lineTo(st.ox + W / 2, st.oy + H); } if (st.mirrorY) { cx.moveTo(st.ox, st.oy + H / 2); cx.lineTo(st.ox + W, st.oy + H / 2); } cx.stroke(); cx.setLineDash([]); }
-  if (selRect) { cx.lineWidth = 1; cx.strokeStyle = '#fff'; cx.strokeRect(st.ox + selRect.x * z + .5, st.oy + selRect.y * z + .5, selRect.w * z, selRect.h * z); cx.strokeStyle = '#f59e0b'; cx.setLineDash([5, 4]); cx.strokeRect(st.ox + selRect.x * z + .5, st.oy + selRect.y * z + .5, selRect.w * z, selRect.h * z); cx.setLineDash([]); }
+  if (selRect) { cx.lineWidth = 1; cx.strokeStyle = '#fff'; cx.strokeRect(st.ox + selRect.x * z + .5, st.oy + selRect.y * z + .5, selRect.w * z, selRect.h * z); cx.strokeStyle = `rgb(${cs.getPropertyValue('--plum').trim().replace(/ /g, ',')})`; cx.setLineDash([5, 4]); /* ameixa = cor de seleção do DESIGN.md */ cx.strokeRect(st.ox + selRect.x * z + .5, st.oy + selRect.y * z + .5, selRect.w * z, selRect.h * z); cx.setLineDash([]); }
   if (hover && ['pencil', 'eraser', 'line', 'rect', 'ellipse'].includes(st.tool) && !strokeActive()) {
     cx.strokeStyle = dark ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.75)'; cx.lineWidth = 1;
     for (const [a, b] of stampPoints(hover[0], hover[1])) if (inside(a, b)) cx.strokeRect(st.ox + a * z + .5, st.oy + b * z + .5, z - 1, z - 1);
@@ -1788,7 +1795,8 @@ const KEYMAP = { b: 'pencil', e: 'eraser', g: 'fill', i: 'pick', l: 'line', u: '
 const viewOn = (v) => $('#v-' + v).classList.contains('on');
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { if ($('#modal').classList.contains('on')) { modal.cancel && modal.cancel(); e.preventDefault(); return; } if (cpEl) { closeColorPicker(); e.preventDefault(); return; } if (ppOpen) { closePP(); e.preventDefault(); return; }
-    if (viewOn('editor') && selRect) { selRect = null; render(); updateBar(); e.preventDefault(); return; } if (document.body.classList.contains('foco')) { toggleFoco(); e.preventDefault(); } return; }
+    if (viewOn('editor') && selRect) { selRect = null; render(); updateBar(); e.preventDefault(); return; }
+    if (viewOn('tile') && ts.msel) { tDeselect(); e.preventDefault(); return; } if (document.body.classList.contains('foco')) { toggleFoco(); e.preventDefault(); } return; }
   if (e.target.matches('input:not([type=checkbox]):not([type=range]):not([type=color]),textarea,select') || $('#modal').classList.contains('on')) return;
   if (e.target.matches('input')) e.target.blur();
   if (viewOn('tile')) { tileKey(e); return; }
@@ -1996,10 +2004,13 @@ setupLoupe('n', $('#nLoupe'));
    TILEMAP — tileset, pincel de tiles (com seleção múltipla e aleatório), camadas normais e de autotile,
    exportação PNG / Tiled (.tmj) / JSON. Mesmos gestos do editor (Pencil, pinça, 2/3 dedos).
    ====================================================================== */
-const TT = [['stamp', 'stamp', 'Pincel de tiles', 'B'], ['erase', 'eraser', 'Borracha', 'E'], ['fill', 'bucket', 'Balde', 'G'], ['rect', 'rect', 'Retângulo', 'U'], ['pick', 'pipette', 'Pegar tile do mapa', 'I'], '|', ['hand', 'hand', 'Mão (navegar)', 'H']];
+const TT = [['stamp', 'stamp', 'Pincel de tiles', 'B'], ['erase', 'eraser', 'Borracha', 'E'], ['fill', 'bucket', 'Balde', 'G'], ['rect', 'rect', 'Retângulo', 'U'], ['pick', 'pipette', 'Pegar tile do mapa', 'I'], '|', ['select', 'select', 'Seleção: arraste para selecionar, arraste dentro para mover', 'S'], ['hand', 'hand', 'Mão (navegar)', 'H']];
+const T_BRUSHES = [1, 2, 3, 4, 5, 6, 8]; // pincel do mapa, em tiles (N×N)
 const TILE_SIZES = [8, 12, 16, 24, 32, 48, 64];
 let tm = null, tsImg = null, tsCols = 0, tsRows = 0, tsDrag = null;
-const ts = { tool: 'stamp', sel: { x: 0, y: 0, w: 1, h: 1 }, random: false, zoom: 2, ox: 0, oy: 0, grid: true, layer: 0, slot: -1 };
+// sel = tiles escolhidos no tileset; msel = área selecionada no mapa (ferramenta Seleção); brush = lado do pincel em tiles
+const ts = { tool: 'stamp', sel: { x: 0, y: 0, w: 1, h: 1 }, random: false, zoom: 2, ox: 0, oy: 0, grid: true, layer: 0, slot: -1, msel: null, brush: clamp(LS.get('tBrush', 1) | 0, 1, 8) };
+let tClip = null; // área copiada do mapa: { w, h, auto, vals, tiles }
 const tHist = [], tFuture = [];
 const tcv = $('#tcv'), tcx = tcv.getContext('2d'), tArea = $('#tArea'), mapOff = document.createElement('canvas');
 let mapDirty = true;
@@ -2014,8 +2025,8 @@ function addTLayer(auto, name, silent) {
   tm.layers.splice(ts.layer + (tm.layers.length ? 1 : 0), 0, L); ts.layer = tm.layers.indexOf(L); mapDirty = true;
   if (!silent) { renderTSide(); tRender(); tSave(); }
 }
-const tSnap = () => ({ name: tm.name, tileset: tm.tileset, mw: tm.mw, mh: tm.mh, tw: tm.tw, th: tm.th, layer: ts.layer, layers: tm.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })) });
-const tRestore = (s) => { const reload = s.tileset !== tm.tileset || s.tw !== tm.tw || s.th !== tm.th; Object.assign(tm, { name: s.name, tileset: s.tileset, mw: s.mw, mh: s.mh, tw: s.tw, th: s.th }); if (reload) loadTsImage(() => { renderTSide(); tRender(); }); tm.layers = s.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })); ts.layer = clamp(s.layer, 0, tm.layers.length - 1); mapDirty = true; };
+const tSnap = () => ({ name: tm.name, tileset: tm.tileset, mw: tm.mw, mh: tm.mh, tw: tm.tw, th: tm.th, layer: ts.layer, msel: ts.msel && { ...ts.msel }, layers: tm.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })) });
+const tRestore = (s) => { const reload = s.tileset !== tm.tileset || s.tw !== tm.tw || s.th !== tm.th; Object.assign(tm, { name: s.name, tileset: s.tileset, mw: s.mw, mh: s.mh, tw: s.tw, th: s.th }); if (reload) loadTsImage(() => { renderTSide(); tRender(); }); tm.layers = s.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })); ts.layer = clamp(s.layer, 0, tm.layers.length - 1); ts.msel = s.msel ? { ...s.msel } : null; mapDirty = true; if (typeof renderTSelBar === 'function') renderTSelBar(); };
 function tPush() { tHist.push(tSnap()); if (tHist.length > 60) tHist.shift(); tFuture.length = 0; }
 function tUndo() { if (!tHist.length) return toast('Nada para desfazer'); tFuture.push(tSnap()); tRestore(tHist.pop()); renderTSide(); tRender(); tSave(); }
 function tRedo() { if (!tFuture.length) return toast('Nada para refazer'); tHist.push(tSnap()); tRestore(tFuture.pop()); renderTSide(); tRender(); tSave(); }
@@ -2058,10 +2069,13 @@ function tDraw() {
   const tw = tm.tw * z, th = tm.th * z;
   if (ts.grid && tw >= 6) { tcx.strokeStyle = document.documentElement.classList.contains('dark') ? 'rgba(255,255,255,.09)' : 'rgba(0,0,0,.1)'; tcx.lineWidth = 1; tcx.beginPath();
     for (let x = 0; x <= tm.mw; x++) { const X = Math.round(ts.ox + x * tw) + .5; tcx.moveTo(X, ts.oy); tcx.lineTo(X, ts.oy + H); } for (let y = 0; y <= tm.mh; y++) { const Y = Math.round(ts.oy + y * th) + .5; tcx.moveTo(ts.ox, Y); tcx.lineTo(ts.ox + W, Y); } tcx.stroke(); }
-  if (tRect) { tcx.strokeStyle = '#f59e0b'; tcx.lineWidth = 2; const a = Math.min(tRect.x0, tRect.x1), b = Math.min(tRect.y0, tRect.y1); tcx.strokeRect(ts.ox + a * tw, ts.oy + b * th, (Math.abs(tRect.x1 - tRect.x0) + 1) * tw, (Math.abs(tRect.y1 - tRect.y0) + 1) * th); }
-  else if (tHover && ['stamp', 'erase', 'rect', 'fill'].includes(ts.tool)) { const L = tm.layers[ts.layer], w = ts.tool === 'stamp' && !L.auto && !ts.random ? ts.sel.w : 1, h = ts.tool === 'stamp' && !L.auto && !ts.random ? ts.sel.h : 1;
-    if (ts.tool === 'stamp' && tsImg && !L.auto) { tcx.globalAlpha = .55; for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) drawTile(tcx, (ts.sel.y + yy) * tsCols + ts.sel.x + xx, ts.ox + (tHover[0] + xx) * tw, ts.oy + (tHover[1] + yy) * th, z); tcx.globalAlpha = 1; }
-    tcx.strokeStyle = '#f59e0b'; tcx.lineWidth = 2; tcx.strokeRect(ts.ox + tHover[0] * tw, ts.oy + tHover[1] * th, w * tw, h * th); }
+  const acc = `rgb(${cs.getPropertyValue('--plum').trim().replace(/ /g, ',')})`; // ameixa = cor de seleção do DESIGN.md
+  if (tRect) { tcx.strokeStyle = acc; tcx.lineWidth = 2; const a = Math.min(tRect.x0, tRect.x1), b = Math.min(tRect.y0, tRect.y1); tcx.strokeRect(ts.ox + a * tw, ts.oy + b * th, (Math.abs(tRect.x1 - tRect.x0) + 1) * tw, (Math.abs(tRect.y1 - tRect.y0) + 1) * th); }
+  else if (tHover && ['stamp', 'erase', 'rect', 'fill'].includes(ts.tool)) { const L = tm.layers[ts.layer], block = ts.tool === 'stamp' && !L.auto && !ts.random && !tBrushApplies(),
+      n = ['stamp', 'erase'].includes(ts.tool) && tBrushApplies() ? ts.brush : 1, r0 = -Math.floor((n - 1) / 2), w = block ? ts.sel.w : n, h = block ? ts.sel.h : n, hx = tHover[0] + (block ? 0 : r0), hy = tHover[1] + (block ? 0 : r0);
+    if (ts.tool === 'stamp' && tsImg && !L.auto && !ts.random) { tcx.globalAlpha = .55; for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) drawTile(tcx, block ? (ts.sel.y + yy) * tsCols + ts.sel.x + xx : ts.sel.y * tsCols + ts.sel.x, ts.ox + (hx + xx) * tw, ts.oy + (hy + yy) * th, z); tcx.globalAlpha = 1; }
+    tcx.strokeStyle = acc; tcx.lineWidth = 2; tcx.strokeRect(ts.ox + hx * tw, ts.oy + hy * th, w * tw, h * th); }
+  if (ts.msel) { const m = ts.msel, X = ts.ox + m.x * tw + .5, Y = ts.oy + m.y * th + .5; tcx.lineWidth = 1.5; tcx.strokeStyle = '#fff'; tcx.strokeRect(X, Y, m.w * tw, m.h * th); tcx.strokeStyle = acc; tcx.setLineDash([6, 4]); tcx.strokeRect(X, Y, m.w * tw, m.h * th); tcx.setLineDash([]); }
   tcx.strokeStyle = 'rgba(128,128,140,.5)'; tcx.lineWidth = 1; tcx.strokeRect(ts.ox - .5, ts.oy - .5, W + 1, H + 1);
   $('#tZoomLbl').textContent = Math.round(z * 100) + '%'; $('#tSize').textContent = `${tm.mw}×${tm.mh} tiles de ${tm.tw}×${tm.th} · ${tm.mw * tm.tw}×${tm.mh * tm.th} px · ${tm.layers[ts.layer]?.name || ''}`;
   $('#tUndo').disabled = !tHist.length; $('#tRedo').disabled = !tFuture.length; $('#tPenBtn').classList.toggle('on', st.penOnly); $('#tPenTxt').textContent = st.penOnly ? 'Só Pencil' : 'Dedo pinta';
@@ -2082,6 +2096,56 @@ function tStampAt(x, y, erase, anchor) {
   if (anchor) { const dx = ((x - ax) % ts.sel.w + ts.sel.w) % ts.sel.w, dy = ((y - ay) % ts.sel.h + ts.sel.h) % ts.sel.h; tSet(L, x, y, (ts.sel.y + dy) * tsCols + ts.sel.x + dx); }
   else for (let yy = 0; yy < ts.sel.h; yy++) for (let xx = 0; xx < ts.sel.w; xx++) tSet(L, x + xx, y + yy, (ts.sel.y + yy) * tsCols + ts.sel.x + xx);
 }
+/** O tamanho do pincel vale para tile único, aleatório, autotile e borracha; um carimbo de vários tiles usa o próprio tamanho. */
+const tBrushApplies = () => { const L = tm.layers[ts.layer]; return ts.brush > 1 && (ts.tool === 'erase' || L.auto || ts.random || ts.sel.w * ts.sel.h === 1); };
+function tPaintAt(x, y, erase, anchor) {
+  if (!tBrushApplies()) return tStampAt(x, y, erase, anchor);
+  const n = ts.brush, r0 = -Math.floor((n - 1) / 2);
+  for (let dy = 0; dy < n; dy++) for (let dx = 0; dx < n; dx++) tStampAt(x + r0 + dx, y + r0 + dy, erase, null);
+}
+function setTBrush(n) { ts.brush = clamp(n | 0, 1, 8); LS.set('tBrush', ts.brush); renderTBrush(); tRender(); }
+
+/* ---------- seleção no mapa (camada atual) ---------- */
+const tGetV = (L, i) => L.auto ? L.cells[i] : L.data[i];
+const tSetV = (L, i, v) => { if (L.auto) L.cells[i] = v > 0 ? 1 : 0; else L.data[i] = v; };
+const tEmpty = (L) => L.auto ? 0 : -1;
+const tInSel = (x, y) => ts.msel && x >= ts.msel.x && y >= ts.msel.y && x < ts.msel.x + ts.msel.w && y < ts.msel.y + ts.msel.h;
+/** Parte da seleção que está dentro do mapa (a seleção pode ter saído pela borda ao mover). */
+const tSelClip = () => { const m = ts.msel; if (!m) return null; const x0 = Math.max(0, m.x), y0 = Math.max(0, m.y), x1 = Math.min(tm.mw, m.x + m.w), y1 = Math.min(tm.mh, m.y + m.h); return x1 > x0 && y1 > y0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null; };
+/** Move o conteúdo de `s` (no estado `base` da camada) por dx, dy; o que sai do mapa se perde, como no editor. */
+function tShiftSel(L, base, s, dx, dy) {
+  const arr = L.auto ? L.cells : L.data, W = tm.mw, e = tEmpty(L); arr.set(base);
+  for (let y = s.y; y < s.y + s.h; y++) for (let x = s.x; x < s.x + s.w; x++) if (tIn(x, y)) arr[y * W + x] = e;
+  for (let y = s.y; y < s.y + s.h; y++) for (let x = s.x; x < s.x + s.w; x++) { const tx = x + dx, ty = y + dy; if (tIn(x, y) && tIn(tx, ty)) arr[ty * W + tx] = base[y * W + x]; }
+  ts.msel = { x: s.x + dx, y: s.y + dy, w: s.w, h: s.h };
+}
+function tCopy(cut) {
+  const s = tSelClip(); if (!s) return toast('Selecione uma área do mapa primeiro (ferramenta Seleção, S)');
+  const L = tm.layers[ts.layer], vals = new Int32Array(s.w * s.h), tiles = new Int32Array(s.w * s.h);
+  for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) { const i = (s.y + y) * tm.mw + s.x + x; vals[y * s.w + x] = tGetV(L, i); tiles[y * s.w + x] = tileAt(L, i); }
+  tClip = { w: s.w, h: s.h, x: s.x, y: s.y, auto: L.auto, vals, tiles };
+  if (cut) { if (!L.visible) return toast('A camada está oculta'); tPush(); for (let y = s.y; y < s.y + s.h; y++) for (let x = s.x; x < s.x + s.w; x++) tSetV(L, y * tm.mw + x, tEmpty(L)); mapDirty = true; tRender(); tSave(); }
+  renderTSelBar(); toast(cut ? 'Recortado' : `Copiado: ${s.w}×${s.h} tiles`);
+}
+function tPaste() {
+  if (!tClip) return toast('Nada copiado no mapa ainda'); const L = tm.layers[ts.layer]; if (!L.visible) return toast('A camada está oculta');
+  tPush(); const x0 = ts.msel ? clamp(ts.msel.x, 0, tm.mw - 1) : clamp(tClip.x, 0, tm.mw - 1), y0 = ts.msel ? clamp(ts.msel.y, 0, tm.mh - 1) : clamp(tClip.y, 0, tm.mh - 1);
+  for (let y = 0; y < tClip.h; y++) for (let x = 0; x < tClip.w; x++) { if (!tIn(x0 + x, y0 + y)) continue; const k = y * tClip.w + x;
+    // camadas do mesmo tipo recebem o valor; autotile → normal recebe o tile resolvido; normal → autotile vira "tem terreno"
+    const v = L.auto === tClip.auto ? tClip.vals[k] : L.auto ? (tClip.vals[k] >= 0 ? 1 : 0) : tClip.tiles[k];
+    if (v !== tEmpty(L) && v >= 0) tSetV(L, (y0 + y) * tm.mw + x0 + x, v); } // colar não apaga o que está embaixo das células vazias
+  ts.msel = { x: x0, y: y0, w: tClip.w, h: tClip.h }; mapDirty = true; setTTool('select'); tRender(); tSave(); renderTSelBar(); toast('Colado: arraste a seleção para posicionar');
+}
+function tDeleteSel() {
+  const s = tSelClip(); if (!s) return; const L = tm.layers[ts.layer]; if (!L.visible) return toast('A camada está oculta');
+  tPush(); for (let y = s.y; y < s.y + s.h; y++) for (let x = s.x; x < s.x + s.w; x++) tSetV(L, y * tm.mw + x, tEmpty(L)); mapDirty = true; tRender(); tSave();
+}
+function tDeselect() { ts.msel = null; tRender(); renderTSelBar(); }
+function renderTSelBar() {
+  const b = $('#tSelBar'); if (!b) return; const m = ts.msel;
+  b.innerHTML = m ? `<span class="mono small muted">${m.w}×${m.h}</span>` + [['copy', 'copy', 'Copiar (⌘C)'], ['cut', 'scissors', 'Recortar (⌘X)'], ['paste', 'clipboard', 'Colar (⌘V)'], ['del', 'trash', 'Apagar a área (Delete)'], ['desel', 'x', 'Tirar seleção (Esc)']].map(x => `<button class="btn sm ic" data-tsb="${x[0]}" title="${x[2]}" aria-label="${x[2]}">${ico(x[1])}</button>`).join('') + '<span class="sep"></span>'
+    : tClip ? `<button class="btn sm ic" data-tsb="paste" title="Colar (⌘V)" aria-label="Colar">${ico('clipboard')}</button><span class="sep"></span>` : '';
+}
 function tFill(x, y) {
   const L = tm.layers[ts.layer]; if (!tIn(x, y)) return false; const get = (i) => L.auto ? L.cells[i] : L.data[i], target = get(y * tm.mw + x), seen = new Uint8Array(tm.mw * tm.mh), st_ = [x, y];
   const list = selTiles(); if (!L.auto && !tsImg) return false; let changed = false;
@@ -2094,29 +2158,44 @@ function tFill(x, y) {
 }
 let tStroke = null, tRect = null;
 function tBegin(x, y, id) {
-  const L = tm.layers[ts.layer]; if (!L.visible) { toast('A camada está oculta'); tStroke = { noop: true }; return; }
+  const L = tm.layers[ts.layer];
+  if (ts.tool === 'select') {
+    if (tInSel(x, y) && tSelClip()) { // arrastar dentro da seleção move o conteúdo
+      if (!L.visible) { toast('A camada está oculta'); tStroke = { noop: true }; return; }
+      tPush(); tStroke = { id, move: true, x0: x, y0: y, sel0: { ...tSelClip() }, base: (L.auto ? L.cells : L.data).slice(), changed: false }; return; }
+    tStroke = { id, select: true, x0: x, y0: y, prev: ts.msel, moved: false }; ts.msel = { x: clamp(x, 0, tm.mw - 1), y: clamp(y, 0, tm.mh - 1), w: 1, h: 1 }; tRender(); return; // selecionar não entra no desfazer
+  }
+  if (!L.visible) { toast('A camada está oculta'); tStroke = { noop: true }; return; }
   if (ts.tool === 'pick') { const i = y * tm.mw + x; if (tIn(x, y)) { const t = tileAt(L, i); if (t >= 0) { ts.sel = { x: t % tsCols, y: Math.floor(t / tsCols), w: 1, h: 1 }; setTTool('stamp'); renderTileset(); } } tStroke = { noop: true }; return; }
   tPush(); tStroke = { id, lx: x, ly: y, anchor: [x, y], changed: false };
   if (ts.tool === 'fill') { tStroke.changed = tFill(x, y); tEnd(); return; } // sem isso o tEnd achava que nada mudou: não redesenhava e jogava fora o desfazer
   if (ts.tool === 'rect') { tRect = { x0: x, y0: y, x1: x, y1: y }; tRender(); return; }
-  tStampAt(x, y, ts.tool === 'erase', null); tStroke.changed = true; mapDirty = true; tRender();
+  tPaintAt(x, y, ts.tool === 'erase', null); tStroke.changed = true; mapDirty = true; tRender();
 }
 function tMove(x, y) {
   if (!tStroke || tStroke.noop) return;
+  if (tStroke.select) { const a = clamp(Math.min(tStroke.x0, x), 0, tm.mw - 1), b = clamp(Math.min(tStroke.y0, y), 0, tm.mh - 1);
+    ts.msel = { x: a, y: b, w: clamp(Math.max(tStroke.x0, x), 0, tm.mw - 1) - a + 1, h: clamp(Math.max(tStroke.y0, y), 0, tm.mh - 1) - b + 1 }; tStroke.moved = tStroke.moved || x !== tStroke.x0 || y !== tStroke.y0; tRender(); return; }
+  if (tStroke.move) { const dx = x - tStroke.x0, dy = y - tStroke.y0; tShiftSel(tm.layers[ts.layer], tStroke.base, tStroke.sel0, dx, dy); tStroke.changed = dx !== 0 || dy !== 0; mapDirty = true; tRender(); return; }
   if (ts.tool === 'rect') { tRect.x1 = x; tRect.y1 = y; tRender(); return; }
   const L = tm.layers[ts.layer], multi = ts.sel.w * ts.sel.h > 1 && !L.auto && !ts.random;
-  const pts = linePts(tStroke.lx, tStroke.ly, x, y); for (let i = 1; i < pts.length; i++) tStampAt(pts[i][0], pts[i][1], ts.tool === 'erase', multi ? tStroke.anchor : null);
+  const pts = linePts(tStroke.lx, tStroke.ly, x, y); for (let i = 1; i < pts.length; i++) tPaintAt(pts[i][0], pts[i][1], ts.tool === 'erase', multi ? tStroke.anchor : null);
   tStroke.lx = x; tStroke.ly = y; tStroke.changed = true; mapDirty = true; tRender();
 }
 function tEnd() {
   if (!tStroke || tStroke.noop) { tStroke = null; return; }
+  if (tStroke.select) { if (!tStroke.moved) ts.msel = null; tStroke = null; tRender(); renderTSelBar(); return; } // toque sem arrastar tira a seleção
   if (tRect) { const a = Math.min(tRect.x0, tRect.x1), b = Math.min(tRect.y0, tRect.y1), c = Math.max(tRect.x0, tRect.x1), d = Math.max(tRect.y0, tRect.y1), L = tm.layers[ts.layer];
     for (let y = b; y <= d; y++) for (let x = a; x <= c; x++) { if (L.auto) tSet(L, x, y, 1); else if (ts.random) tStampAt(x, y, false, null); else tStampAt(x, y, false, [a, b]); }
     tRect = null; tStroke.changed = true; mapDirty = true; }
   if (!tStroke.changed) tHist.pop(); else mapDirty = true;
   tStroke = null; tRender(); tSave(); renderTLayers();
 }
-function tAbort() { if (tStroke && !tStroke.noop && tHist.length) { tRestore(tHist.pop()); } tStroke = null; tRect = null; tRender(); }
+function tAbort() {
+  if (tStroke && tStroke.select) ts.msel = tStroke.prev; // a pinça começou: volta a seleção que existia
+  else if (tStroke && !tStroke.noop && tHist.length) { tRestore(tHist.pop()); }
+  tStroke = null; tRect = null; tRender(); renderTSelBar();
+}
 
 /* ---------- entrada (mesmos gestos do editor) ---------- */
 const TT_T = new Map(); let tPin = null, tGest = null, tPenDown = false, tPan = null, tFillPend = null;
@@ -2160,15 +2239,22 @@ function setTTool(t) { ts.tool = t; $$('#tRail [data-tt]').forEach(b => b.classL
 $('#tRail').innerHTML = TT.map(t => t === '|' ? '<hr>' : `<button class="tool" data-tt="${t[0]}" title="${t[2]} (${t[3]})">${ico(t[1])}<span class="k">${t[3]}</span></button>`).join('') +
   `<hr><button class="tool tog" data-tr="random" title="Aleatório: cada célula recebe um tile sorteado da seleção (R)">${ico('dice')}</button><button class="tool tog on" data-tr="grid" title="Grade">${ico('grid')}</button>`;
 $('#tRail').addEventListener('click', (e) => { const t = e.target.closest('[data-tt]'); if (t) return setTTool(t.dataset.tt); const r = e.target.closest('[data-tr]'); if (!r) return; ts[r.dataset.tr] = !ts[r.dataset.tr]; r.classList.toggle('on', ts[r.dataset.tr]); tRender(); });
+// barra da seleção do mapa (o contêiner não é recriado: listener ligado uma vez só)
+$('#tSelBar').addEventListener('click', (e) => { const b = e.target.closest('[data-tsb]'); if (!b) return; const k = b.dataset.tsb;
+  if (k === 'copy') tCopy(false); else if (k === 'cut') tCopy(true); else if (k === 'paste') tPaste(); else if (k === 'del') tDeleteSel(); else tDeselect(); });
 $('#tUndo').onclick = tUndo; $('#tRedo').onclick = tRedo; $('#tPenBtn').onclick = () => { setPenOnly(!st.penOnly); tRender(); };
 $('#tZoomIn').onclick = () => { const r = tArea.getBoundingClientRect(); tZoomAt(ts.zoom * 1.25, r.width / 2, r.height / 2); };
 $('#tZoomOut').onclick = () => { const r = tArea.getBoundingClientRect(); tZoomAt(ts.zoom / 1.25, r.width / 2, r.height / 2); };
 $('#tZoomLbl').onclick = tFit;
 function tileKey(e) {
   const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
-  if (mod) { if (k === 'z') { e.preventDefault(); e.shiftKey ? tRedo() : tUndo(); } else if (k === 'y') { e.preventDefault(); tRedo(); } else if (k === 's') { e.preventDefault(); tFile('save'); } return; }
+  if (mod) { if (k === 'z') { e.preventDefault(); e.shiftKey ? tRedo() : tUndo(); } else if (k === 'y') { e.preventDefault(); tRedo(); } else if (k === 's') { e.preventDefault(); tFile('save'); }
+    else if (k === 'c') { e.preventDefault(); tCopy(false); } else if (k === 'x') { e.preventDefault(); tCopy(true); } else if (k === 'v') { e.preventDefault(); tPaste(); }
+    else if (k === 'a') { e.preventDefault(); ts.msel = { x: 0, y: 0, w: tm.mw, h: tm.mh }; setTTool('select'); renderTSelBar(); } return; }
   if (k === ' ') { panMode = true; e.preventDefault(); return; }
-  const map = { b: 'stamp', e: 'erase', g: 'fill', u: 'rect', i: 'pick', h: 'hand' }; if (map[k]) return setTTool(map[k]);
+  if ((k === 'delete' || k === 'backspace') && ts.msel) { e.preventDefault(); tDeleteSel(); return; }
+  if (k === '[' || k === ']') { const i = T_BRUSHES.indexOf(ts.brush); setTBrush(T_BRUSHES[clamp((i < 0 ? 0 : i) + (k === '[' ? -1 : 1), 0, T_BRUSHES.length - 1)]); return; }
+  const map = { b: 'stamp', e: 'erase', g: 'fill', u: 'rect', i: 'pick', s: 'select', h: 'hand' }; if (map[k]) return setTTool(map[k]);
   if (k === 'r') { ts.random = !ts.random; $('#tRail [data-tr=random]').classList.toggle('on', ts.random); tRender(); } else if (k === '0') tFit(); else if (k === '+' || k === '=') $('#tZoomIn').click(); else if (k === '-') $('#tZoomOut').click();
 }
 
@@ -2178,7 +2264,8 @@ const tCard = (id, title, acts = '') => `<div class="card${tCardOpen[id] === fal
 const tb3 = (k, icon, title, cls = '') => `<button class="btn sm ic ${cls}" data-tp="${k}" title="${esc(title)}">${ico(icon)}</button>`;
 function renderTSide() {
   const L = tm.layers[ts.layer];
-  $('#tSide').innerHTML = tCard('tileset', 'Tileset') + tCard('mapa', 'Mapa') + tCard('tcamadas', 'Camadas', tb3('tAdd', 'plus', 'Nova camada') + tb3('tAddAuto', 'auto', 'Nova camada de autotile') + tb3('tDel', 'trash', 'Excluir camada', 'danger')) + '';
+  // ordem: Camadas logo abaixo do tileset (criar autotile e tocar nas regras sem rolar o painel no iPad); Mapa, o menos usado, por último
+  $('#tSide').innerHTML = tCard('tileset', 'Tileset') + tCard('tcamadas', 'Camadas', tb3('tAdd', 'plus', 'Nova camada') + tb3('tAddAuto', 'auto', 'Nova camada de autotile') + tb3('tDel', 'trash', 'Excluir camada', 'danger')) + tCard('tpincel', 'Pincel') + tCard('mapa', 'Mapa');
   const tb = $('#tb-tileset');
   tb.innerHTML = `<div class="row wrap"><button class="btn sm" data-tp="tsImport">${ico('upload')}Importar PNG</button><button class="btn sm" data-tp="tsEditor">Do editor</button><button class="btn sm" data-tp="tsDemo">Exemplo</button></div>
     <div class="lbl">Tamanho do tile<div class="chips" id="tTileSz">${TILE_SIZES.map(s => `<button data-ts="${s}" class="${tm.tw === s && tm.th === s ? 'on' : ''}">${s}</button>`).join('')}</div></div>
@@ -2186,7 +2273,12 @@ function renderTSide() {
   const mb = $('#tb-mapa');
   mb.innerHTML = `<div class="row"><span class="small muted">Atual</span><b class="mono small">${tm.mw}×${tm.mh} tiles</b></div><div class="chips">${SIZES.map(s => `<button data-ms="${s}" class="${tm.mw === s && tm.mh === s ? 'on' : ''}">${s}</button>`).join('')}</div>
     <div class="grid2"><label class="lbl">Largura<input class="input-field" id="tMw" inputmode="numeric" value="${tm.mw}"></label><label class="lbl">Altura<input class="input-field" id="tMh" inputmode="numeric" value="${tm.mh}"></label></div><button class="btn sm" data-tp="tResize">Aplicar tamanho</button>`;
-  renderTLayers(); if (L && L.auto) renderAuto(); renderTileset();
+  renderTBrush(); renderTLayers(); if (L && L.auto) renderAuto(); renderTileset();
+}
+function renderTBrush() {
+  const b = $('#tb-tpincel'); if (!b) return;
+  b.innerHTML = `<div class="lbl"><span>Tamanho: ${ts.brush}×${ts.brush} tiles <span class="muted" style="font-weight:500">(teclas [ e ])</span></span><div class="chips">${T_BRUSHES.map(n => `<button data-tbr="${n}" class="${n === ts.brush ? 'on' : ''}" aria-label="Pincel de ${n}×${n} tiles">${n}</button>`).join('')}</div></div>
+    <span class="hint">Vale para tile único, aleatório, autotile e borracha; carimbo de vários tiles usa o próprio tamanho.</span>`;
 }
 function renderTLayers() {
   const b = $('#tb-tcamadas'); if (!b) return;
@@ -2207,18 +2299,19 @@ function renderTileset() {
   c.width = tsImg.width * sc; c.height = tsImg.height * sc; c.style.width = Math.round(tsImg.width * disp) + 'px'; c.style.height = Math.round(tsImg.height * disp) + 'px';
   const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(tsImg, 0, 0, c.width, c.height);
   x.strokeStyle = 'rgba(255,255,255,.25)'; x.lineWidth = 1; x.beginPath(); for (let i = 1; i < tsCols; i++) { x.moveTo(i * tm.tw * sc + .5, 0); x.lineTo(i * tm.tw * sc + .5, c.height); } for (let j = 1; j < tsRows; j++) { x.moveTo(0, j * tm.th * sc + .5); x.lineTo(c.width, j * tm.th * sc + .5); } x.stroke();
-  x.strokeStyle = '#f59e0b'; x.lineWidth = 2; x.strokeRect(ts.sel.x * tm.tw * sc + 1, ts.sel.y * tm.th * sc + 1, ts.sel.w * tm.tw * sc - 2, ts.sel.h * tm.th * sc - 2);
+  x.strokeStyle = cssRgb('--plum'); x.lineWidth = 2; x.strokeRect(ts.sel.x * tm.tw * sc + 1, ts.sel.y * tm.th * sc + 1, ts.sel.w * tm.tw * sc - 2, ts.sel.h * tm.th * sc - 2);
   const tileOf = (e) => { const r = c.getBoundingClientRect(), s = r.width / tsImg.width; return [clamp(Math.floor((e.clientX - r.left) / (tm.tw * s)), 0, tsCols - 1), clamp(Math.floor((e.clientY - r.top) / (tm.th * s)), 0, tsRows - 1)]; };
   c.onpointerdown = (e) => { if (e.pointerType === 'touch' && !e.isPrimary) return; const [tx, ty] = tileOf(e);
     if (tm.layers[ts.layer].auto && ts.slot >= 0) { tPush(); tm.layers[ts.layer].rules[ts.slot] = ty * tsCols + tx; ts.slot = (ts.slot + 1) % 16; mapDirty = true; renderAuto(); tRender(); tSave(); ts.sel = { x: tx, y: ty, w: 1, h: 1 }; renderTileset(); return; }
     tsDrag = [tx, ty]; ts.sel = { x: tx, y: ty, w: 1, h: 1 }; c.setPointerCapture(e.pointerId); redrawSel(); if (ts.tool !== 'stamp' && ts.tool !== 'fill' && ts.tool !== 'rect') setTTool('stamp'); };
   c.onpointermove = (e) => { if (!tsDrag || !e.buttons) return; const [tx, ty] = tileOf(e); ts.sel = { x: Math.min(tsDrag[0], tx), y: Math.min(tsDrag[1], ty), w: Math.abs(tx - tsDrag[0]) + 1, h: Math.abs(ty - tsDrag[1]) + 1 }; redrawSel(); };
   c.onpointerup = c.onpointercancel = () => { if (tsDrag) { tsDrag = null; renderTSideHint(); } };
-  function redrawSel() { x.clearRect(0, 0, c.width, c.height); x.drawImage(tsImg, 0, 0, c.width, c.height); x.strokeStyle = 'rgba(255,255,255,.25)'; x.lineWidth = 1; x.beginPath(); for (let i = 1; i < tsCols; i++) { x.moveTo(i * tm.tw * sc + .5, 0); x.lineTo(i * tm.tw * sc + .5, c.height); } for (let j = 1; j < tsRows; j++) { x.moveTo(0, j * tm.th * sc + .5); x.lineTo(c.width, j * tm.th * sc + .5); } x.stroke(); x.strokeStyle = '#f59e0b'; x.lineWidth = 2; x.strokeRect(ts.sel.x * tm.tw * sc + 1, ts.sel.y * tm.th * sc + 1, ts.sel.w * tm.tw * sc - 2, ts.sel.h * tm.th * sc - 2); }
+  function redrawSel() { x.clearRect(0, 0, c.width, c.height); x.drawImage(tsImg, 0, 0, c.width, c.height); x.strokeStyle = 'rgba(255,255,255,.25)'; x.lineWidth = 1; x.beginPath(); for (let i = 1; i < tsCols; i++) { x.moveTo(i * tm.tw * sc + .5, 0); x.lineTo(i * tm.tw * sc + .5, c.height); } for (let j = 1; j < tsRows; j++) { x.moveTo(0, j * tm.th * sc + .5); x.lineTo(c.width, j * tm.th * sc + .5); } x.stroke(); x.strokeStyle = cssRgb('--plum'); x.lineWidth = 2; x.strokeRect(ts.sel.x * tm.tw * sc + 1, ts.sel.y * tm.th * sc + 1, ts.sel.w * tm.tw * sc - 2, ts.sel.h * tm.th * sc - 2); }
 }
 const renderTSideHint = () => { const h = $('#tb-tileset .hint'); if (h) h.textContent = `${tsCols * tsRows} tiles · toque num tile ou arraste para selecionar vários (vira um carimbo). Seleção: ${ts.sel.w}×${ts.sel.h}.`; renderTileset(); };
 $('#tSide').addEventListener('click', async (e) => {
   const tg = e.target.closest('[data-ttoggle]'); if (tg && !e.target.closest('.acts')) { const id = tg.dataset.ttoggle, card = tg.parentElement; card.classList.toggle('closed'); tCardOpen[id] = !card.classList.contains('closed'); LS.set('tcards', tCardOpen); if (id === 'tileset') renderTileset(); return; }
+  const br = e.target.closest('[data-tbr]'); if (br) { setTBrush(+br.dataset.tbr); return; }
   const sz = e.target.closest('[data-ts]'); if (sz) { const n = +sz.dataset.ts; if (n === tm.tw && n === tm.th) return; tPush(); tm.tw = tm.th = n; loadTsImage(() => { ts.sel = { x: 0, y: 0, w: 1, h: 1 }; renderTSide(); tFit(); tSave(); }); return; }
   const ms = e.target.closest('[data-ms]'); if (ms) { const n = +ms.dataset.ms; tResizeMap(n, n); return; }
   const sl = e.target.closest('[data-slot]'); if (sl) { ts.slot = +sl.dataset.slot; renderAuto(); toast('Agora toque no tile do tileset para essa combinação'); return; }

@@ -154,6 +154,8 @@ Teclas do trilho; ativa em ameixa com sombra curta e a letra do atalho em pixel 
 Canaleta rebaixada; o segmento ativo sobe com filete ameixa embaixo. Chips de tamanho viram ameixa quando ativos.
 ### Paleta (fileira e painel)
 Botões de cor 34 px; o ativo sobe 3 px com anel ameixa.
+### Barra de seleção (flutuante)
+Placa em relevo centralizada no topo da tela de desenho (editor e mapa), visível só com seleção ou algo copiado: tamanho da seleção e teclas de ícone (copiar, recortar, colar, cortar/apagar, tirar). Entra com o `pop`; a centralização usa `translate` para a animação não deslocá-la. Seleção, cursor e grade maior no canvas usam ameixa, lida do token (`cssRgb('--plum')`).
 ### Inputs
 Campo rebaixado; foco com borda ameixa e halo 3 px.
 ### LCD / toast / carregamento
