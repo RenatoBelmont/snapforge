@@ -3,6 +3,8 @@ const path = require('path'), url = require('url');
 const ROOT = path.join(__dirname, '..'), FIX = path.join(__dirname, 'fixtures'), SHOTS = path.join(__dirname, 'screenshots');
 require('fs').mkdirSync(SHOTS, { recursive: true });
 const fileUrl = (p) => url.pathToFileURL(path.join(ROOT, p)).href;
+// SF_UI=v2 roda a mesma bateria na interface nova (dist/snapforge-v2.html e dist/pwa-v2/)
+const V2 = process.env.SF_UI === 'v2' || process.argv.includes('--v2'), APP = V2 ? 'dist/snapforge-v2.html' : 'dist/snapforge.html', PWA_IDX = V2 ? 'dist/pwa-v2/index.html' : 'dist/pwa/index.html';
 
 const fs = require('fs');
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
@@ -12,7 +14,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, hasTouch: true, deviceScaleFactor: 2 });
   const p = await ctx.newPage(); const errs = [];
   p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); }); p.on('pageerror', e => errs.push(String(e)));
-  await p.goto(fileUrl('dist/snapforge.html')); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForTimeout(600);
+  await p.goto(fileUrl(APP)); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForTimeout(600);
   const cdp = await ctx.newCDPSession(p);
   const PKGV = require('../package.json').version;
   ok((await p.textContent('#ver')) === 'v' + PKGV, 'versão v' + PKGV + ' (bate com package.json)');
@@ -236,6 +238,6 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const real = errs.filter(x => !x.includes('400 (Bad Request)')); ok(real.length === 0, 'sem erros de console (fora o 400 simulado de propósito): ' + real.join(' | '));
   // ---- versão PWA abre também
   const p2 = await ctx.newPage(); const e2 = []; p2.on('pageerror', e => e2.push(String(e)));
-  await p2.goto(fileUrl('dist/pwa/index.html')); await sleep(400); ok(e2.length === 0 && (await p2.textContent('.brand span')) === 'Snapforge', 'index.html do PWA abre sem erro');
+  await p2.goto(fileUrl(PWA_IDX)); await sleep(400); ok(e2.length === 0 && (await p2.textContent('.brand span')) === 'Snapforge', 'index.html do PWA abre sem erro');
   await b.close(); console.log(fails ? fails + ' falha(s)' : 'TUDO OK'); process.exit(fails ? 1 : 0);
 })();
