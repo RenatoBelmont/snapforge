@@ -21,7 +21,3 @@ Os projetos ficam salvos no próprio iPad. Use **Arquivo › Salvar projeto** de
 ## Créditos
 
 Pixel Snapper e Sprite Normals: portes para JavaScript dos projetos open source da Sprite Fusion (MIT, © Hugo Duprez) — https://github.com/Hugo-Dz/spritefusion-pixel-snapper e https://github.com/Hugo-Dz/spritefusion-sprite-normals
-
-## Interface nova (em teste)
-
-Há uma segunda interface, redesenhada, publicada ao lado da atual em `dist/pwa-v2/` (arquivo único: `dist/snapforge-v2.html`). As duas usam o mesmo projeto salvo no aparelho. Detalhes em `src/v2/DESIGN.md`.

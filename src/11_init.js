@@ -8,7 +8,7 @@ function showView(v) {
   if (v === 'tile') requestAnimationFrame(() => { tResize(); if (!tileFitted) { tFit(); tileFitted = true; } renderTileset(); });
 }
 $('#tabs').addEventListener('click', (e) => { const t = e.target.closest('.tab'); if (t) showView(t.dataset.v); });
-function setTheme(dark) { document.documentElement.classList.toggle('dark', dark); $('#themeBtn').innerHTML = ico(dark ? 'sun' : 'moon'); $('#themeBtn').title = dark ? 'Tema claro' : 'Tema escuro'; LS.set('dark', dark); const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#09090b' : '#fcfaf6'; render(); if (tm) tRender(); }
+function setTheme(dark) { document.documentElement.classList.toggle('dark', dark); $('#themeBtn').innerHTML = ico(dark ? 'sun' : 'moon'); $('#themeBtn').title = dark ? 'Tema claro' : 'Tema escuro'; LS.set('dark', dark); const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#222128' : '#dcd8cf'; /* cor da carcaça */ render(); if (tm) tRender(); }
 $('#themeBtn').onclick = () => setTheme(!document.documentElement.classList.contains('dark'));
 // sem zoom da página no iPad (Ponto Cruz)
 ['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
@@ -28,4 +28,5 @@ window.addEventListener('pagehide', flushSaves); window.addEventListener('before
   let lastW = 0; new ResizeObserver(() => { if (!viewOn('editor')) return; const w = area.clientWidth; resizeCanvas(); if (lastW && Math.abs(w - lastW) > 60) fit(); lastW = w; }).observe(area);
   const v0 = LS.get('view', 'editor'); showView(['editor', 'tile', 'snap', 'normal'].includes(v0) ? v0 : 'editor'); // 'gerar' (aba de IA da 1.1) e lixo caem no editor
   requestAnimationFrame(() => { resizeCanvas(); fit(); });
+  setTimeout(() => document.body.classList.toggle('boot', false), 900); // o LCD acende uma vez, ao abrir; trocar de aba não repete
 })();

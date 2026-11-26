@@ -3,8 +3,7 @@ const path = require('path'), url = require('url');
 const ROOT = path.join(__dirname, '..'), FIX = path.join(__dirname, 'fixtures'), SHOTS = path.join(__dirname, 'screenshots');
 require('fs').mkdirSync(SHOTS, { recursive: true });
 const fileUrl = (p) => url.pathToFileURL(path.join(ROOT, p)).href;
-// SF_UI=v2 roda a mesma bateria na interface nova (dist/snapforge-v2.html e dist/pwa-v2/)
-const V2 = process.env.SF_UI === 'v2' || process.argv.includes('--v2'), APP = V2 ? 'dist/snapforge-v2.html' : 'dist/snapforge.html', PWA_IDX = V2 ? 'dist/pwa-v2/index.html' : 'dist/pwa/index.html';
+const APP = 'dist/snapforge.html', PWA_IDX = 'dist/pwa/index.html';
 
 const fs = require('fs');
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };

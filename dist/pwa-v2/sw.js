@@ -1,12 +1,4 @@
-// Guarda o app no iPad para abrir sem internet. A versão muda a cada build.
-const VERSAO = '1.3.0-90a7126b59';
-const CACHE = 'snapforge2-' + VERSAO;
-const ARQUIVOS = ['./', './index.html', './manifest.webmanifest', './icons/apple-touch-icon.png', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png'];
-self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARQUIVOS)).then(() => self.skipWaiting())); });
-self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('snapforge2-') && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
-// Rede primeiro (pega a versão nova quando há internet), cache quando está offline. 
-self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
-  e.respondWith(fetch(e.request).then((r) => { if (r.ok) { const c = r.clone(); caches.open(CACHE).then((x) => x.put(e.request, c)); } return r; })
-    .catch(() => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match('./index.html'))));
-});
+// Aposentado na 1.4.0: apaga o cache da interface em teste, desinstala-se e leva as abas abertas para o app oficial.
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('snapforge2-')).map((k) => caches.delete(k))))
+  .then(() => self.registration.unregister()).then(() => self.clients.matchAll({ type: 'window' })).then((cs) => cs.forEach((c) => c.navigate('../pwa/')))); });

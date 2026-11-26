@@ -7,7 +7,7 @@
         "rule": "cramped-padding",
         "value": "*",
         "files": [
-          "src/v2/shell.html"
+          "src/shell.html"
         ],
         "createdAt": "2026-11-26T12:40:46.366Z",
         "reason": "Claude: .controls é só o contêiner; cada .card dentro tem card-h com 14px de padding e card-b com 14px, o texto não encosta na borda"

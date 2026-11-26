@@ -1,7 +1,7 @@
 ---
 version: 1
-slug: "src-v2-shell-html"
-primary_target: "src/v2/shell.html"
+slug: "src-shell-html"
+primary_target: "src/shell.html"
 related_targets: []
 ---
 

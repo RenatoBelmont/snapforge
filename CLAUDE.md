@@ -1,6 +1,6 @@
 # Snapforge — guia do projeto (para o Claude Code)
 
-Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.3.0**. Existem **duas interfaces** em comparação (veja "Interface nova").
+Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.4.0**.
 
 Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad com Apple Pencil** e também no Windows (Chrome/Firefox). Interface 100% em **português do Brasil**.
 
@@ -9,8 +9,8 @@ Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad c
 ## Regras do projeto (siga sempre)
 
 1. **Versão em toda alteração.** SemVer: PATCH = correção/ajuste; MINOR = recurso novo sem quebrar dados; MAJOR = mudança que quebra o formato salvo (localStorage ou `.json`). A versão vive em **dois lugares e eles precisam bater**: `const VERSION` em `src/shell.html` e `"version"` em `package.json`. Ela aparece no cabeçalho do app e vira a chave do cache do service worker no build. Registre a mudança na seção "Histórico" abaixo.
-2. **Visual do Waypoint** (outro app do Renato): tokens zinco (escuro) / creme (claro), destaque âmbar `#f59e0b`/`#fbbf24`, cards com borda que acende no hover, botões `.btn`, `.btn.pri`, `.input-field`, `.chips`, `.seg`. **Ícone próprio** (a bigorna em pixel) — nunca usar o logo de quadrados coloridos do Waypoint.
-3. **Layout da v1** (preferência explícita do Renato): cabeçalho numa linha só (marca + versão + abas com bolinha colorida + status + tema), trilho de ferramentas à esquerda, **painel direito com cards recolhíveis**. **Tudo cabe numa tela, sem rolar a página** — só os painéis internos rolam. Há teste automatizado para isso em 3 tamanhos de tela.
+2. **Visual "portátil"** (escolhido pelo Renato na 1.4.0; tokens e regras em **`DESIGN.md`**): carcaça neutra (cinza-massa no claro, grafite no escuro), teclas com relevo, destaque **ameixa** só para ação/seleção, desenho numa "tela" escura recuada, **só a arte tem cor saturada**, faixa **LCD** com letra de pixel (Silkscreen embutida), **LED** de salvamento. Contraste ≥ 4,5:1 medido nos dois temas. **Ícone próprio** (a bigorna em pixel).
+3. **Layout**: cabeçalho numa linha só (marca + versão + abas + LED + tema), **trilho de ferramentas em uma coluna** à esquerda (pedido do Renato; a tecla vai de 44 a 38 px conforme a altura da tela), canvas no centro com a **fileira de paleta** e o **LCD** embaixo, **painel direito em módulos recolhíveis**. **Tudo cabe numa tela, sem rolar a página** — só os painéis internos rolam. Há teste automatizado para isso.
 4. **Sem IA / sem APIs pagas.** A geração por IA (Gemini/Groq) foi removida a pedido na 1.2.0. O que ficou é o botão "Prompt para o ChatGPT" no Snapper, que só monta texto — não chama nada. Não reintroduzir chamadas de rede.
 5. **Sem dependências no app**: nada de CDN, frameworks ou fontes externas. Precisa abrir offline e como arquivo único. (Playwright e pngjs são só para build de ícones e testes.)
 6. **iPad primeiro**: alvos de toque ≥ 30–44 px, `touch-action` correto, nada de hover obrigatório, `inputmode` em campos numéricos, safe-area. Todo recurso de desenho tem que funcionar com caneta, dedo e mouse.
@@ -30,20 +30,20 @@ src/
   shell.html         HTML + todo o CSS + marcadores de build
   engines.js         Pixel Snapper e Sprite Normals (porte JS dos projetos Rust da Sprite Fusion)
   00_base.js … 11_init.js   o app, concatenado em ordem alfabética
-  v2/                interface nova, em comparação: shell.html (HTML+CSS próprios), 90_v2.js (fileira de paleta, LCD),
-                     fonts/ (Silkscreen, OFL, embutida em base64 no build), DESIGN.md (sistema visual da v2)
+  fonts/             Silkscreen (OFL), embutida em base64 no build — sem rede
 tests/
-  e2e.js             101 verificações no navegador (Playwright + Chromium)
+  e2e.js             104 verificações no navegador (Playwright + Chromium)
   engines-vs-rust.js compara os motores JS com os binários Rust originais
   snapper-structure.js  idem, checando grade e cor-base célula a célula
   fixtures/          imagens de teste + make_fixtures.js que as gera
 dist/
   snapforge.html     arquivo único (bom no computador)
   pwa/               index.html + sw.js + manifest + icons/  → publicar no GitHub Pages
-  snapforge-v2.html, pwa-v2/   o mesmo, com a interface nova
+  pwa-v2/            só redirecionamento + service worker que se desinstala (aposentou a interface de teste da 1.3.0)
+DESIGN.md            sistema visual (tokens, componentes, regras)
 PRODUCT.md           fatos do produto (usado pelo impeccable)
 .claude/             plugin frontend-design (settings.json) e skills ui-ux-pro-max e impeccable
-.impeccable/         contrato de direção da v2 e exceções do detector do impeccable
+.impeccable/         contrato de direção do design e exceções do detector do impeccable
 ```
 
 ## Build
@@ -52,7 +52,7 @@ PRODUCT.md           fatos do produto (usado pelo impeccable)
 npm install                 # só para testes/ícones
 npx playwright install chromium
 npm run build               # = node build.js
-npm test                    # build + tests/e2e.js nas duas interfaces (--v2 = só a nova: npm run test:v2)
+npm test                    # build + tests/e2e.js
 ```
 
 Se o Chromium já estiver instalado em outro lugar (ex.: ambiente do Claude Code na nuvem), aponte `PW_CHROMIUM=/caminho/do/chrome` em vez de rodar `playwright install`. O teste confere que `#ver` bate com o `version` do `package.json`.
@@ -60,19 +60,14 @@ Se o Chromium já estiver instalado em outro lugar (ex.: ambiente do Claude Code
 `build.js`:
 1. Concatena `src/*.js` (exceto `engines.js`) **em ordem alfabética do nome do arquivo** e injeta em `/*@JS*/` dentro de `src/shell.html`. Por isso os arquivos têm prefixo numérico — **a ordem importa** (veja "Módulos").
 2. Injeta `src/engines.js` em `<script id="engines-src">/*ENGINES*/</script>`. O app lê esse texto para criar o Web Worker (Blob URL) e também o executa na página, como fallback.
-3. Substitui `__LOGO_SVG__`, `__FAVICON__`, `__APPLEICON__` (PNG em data URI) e `<!--PWA_HEAD-->` (vazio no arquivo único; manifest + registro do service worker no PWA).
+3. Substitui `__LOGO_SVG__`, `__FAVICON__`, `__APPLEICON__` (PNG em data URI), `__FONT_SILK_400__`/`__FONT_SILK_700__` (woff2 em data URI) e `<!--PWA_HEAD-->` (vazio no arquivo único; manifest + registro do service worker no PWA).
 4. Gera `dist/pwa/sw.js` com cache `snapforge-<versão>-<hash>` (rede primeiro, cache offline) e o `manifest.webmanifest`.
 
 O desenho do ícone está na constante `ART` (SVG 10×10) em `build.js`. Se mudar, rode `npm run build:icons`.
 
-## Interface nova (`src/v2/`, em comparação)
+## Design
 
-Pedido do Renato (1.3.0): uma **cópia** com interface reformulada, lado a lado com a atual, para decidir depois qual manter. **Não substitui** a atual.
-- Direção "portátil", escolhida por ele no sorteio do impeccable: carcaça neutra, teclas com relevo, tela escura em volta do desenho, fileira de paleta sempre visível, faixa LCD com estado e cor. Detalhes e tokens em `src/v2/DESIGN.md`; contrato em `.impeccable/surfaces/src-v2-shell-html.md`. Ajuste pedido no piloto: **trilho em uma coluna** (o tamanho das teclas acompanha a altura da tela).
-- **Mesma lógica**: o build concatena `src/*.js` + `src/v2/*.js` dentro de `src/v2/shell.html`. A v2 precisa manter os IDs/classes que o JS usa; o que for exclusivo dela entra em `src/v2/90_v2.js` (que roda depois do `init()`). A versão vem de `src/shell.html` (`__VERSION__`).
-- **Mesmos dados**: as duas usam as mesmas chaves `snapforge.*` do localStorage — no mesmo navegador/aparelho abrem o mesmo projeto. O service worker da v2 usa cache `snapforge2-*` para não apagar o da atual.
-- Endereços: atual `…/snapforge/dist/pwa/`, nova `…/snapforge/dist/pwa-v2/` (no iPad dá para instalar as duas; a nova se chama "Snapforge 2").
-- Se a v2 for escolhida: mover `src/v2/shell.html` para `src/shell.html`, `90_v2.js` para `src/`, DESIGN.md para a raiz, atualizar as regras 2–3 acima e apagar a geração dupla no `build.js`. Se for descartada: apagar `src/v2/`, `dist/*v2*` e o trecho da v2 no `build.js`/`tests/e2e.js`.
+Sistema completo em `DESIGN.md` (tokens em YAML + regras); direção e contrato em `.impeccable/surfaces/src-shell-html.md`; fatos do produto em `PRODUCT.md`. As skills de design ficam no repositório (`.claude/`): **frontend-design**, **ui-ux-pro-max** e **impeccable** (rode `.claude/skills/impeccable/scripts/impeccable detect src/shell.html` depois de mexer no CSS; deve dar 0 problemas). Histórico: a 1.3.0 publicou o design novo ao lado do antigo (visual do Waypoint) para comparação; na 1.4.0 o Renato escolheu o novo e o antigo saiu (continua no histórico do git, commit `3f7fec1`).
 
 ## Módulos (`src/`)
 
@@ -92,6 +87,7 @@ Scripts clássicos concatenados, todos no mesmo escopo global (sem `import`/`exp
 | `07b_picker.js` | Seletor de cor (quadrado SV + matiz + HEX + Recentes + paleta + Favoritas), com **pointer events** (funciona no toque) |
 | `07c_files.js` | Serializar/abrir projeto `.json`, novo, renomear, importar imagem, exportar PNG/sprite sheet |
 | `07d_editor_ui.js` | Trilho, barra do palco, cards do painel direito (Cor, Pincel e vista, Camadas, Animação, Canvas), modo foco + faixa de cores, status de salvamento, **atalhos de teclado** |
+| `07e_prow.js` | Fileira de paleta embaixo do canvas (`renderPRow`, chamada por `renderFaixa` e `setTool`) e a cor atual no LCD |
 | `08_snapper.js` | Lupa sincronizada (`setupLoupe`), tela do Pixel Snapper, prompt para o ChatGPT |
 | `09_normal.js` | Tela do Normal Map + prévia de luz interativa |
 | `10_tilemap.js` | Editor de tilemap completo (tileset, pincel/carimbo, autotile, camadas, export Tiled/PNG/JSON, ZIP sem compressão) |
@@ -160,6 +156,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 
 ## Histórico
 
+- **1.4.0** — **design "portátil" vira o oficial** (escolha do Renato após comparar na 1.3.0): `src/v2/shell.html` → `src/shell.html`, fileira de paleta/LCD integrados ao app (`07e_prow.js`, sem os encaixes provisórios), `DESIGN.md` na raiz, regras 2–3 atualizadas, build com uma interface só. `dist/pwa-v2/` virou redirecionamento para `dist/pwa/` com um service worker que limpa o cache e se desinstala (para quem instalou o "Snapforge 2").
 - **1.3.0** — **interface nova em comparação** (`src/v2/`, `dist/pwa-v2/`), feita com as skills de design instaladas no repositório (frontend-design, ui-ux-pro-max, impeccable): mundo "portátil", trilho em uma coluna, fileira de paleta, faixa LCD, LED de salvamento, contraste medido ≥ 4,5:1 nos dois temas; a bateria e2e roda nas duas interfaces. Na atual nada muda além da versão (e o texto vazio do Snapper agora segue o nome do botão).
 - **1.2.4** — correção de verdade do balde do Tilemap: `tFill` agora diz se mudou algo e o traço é marcado como alterado — antes o `tEnd` achava que nada mudou, não redesenhava o mapa **e descartava o passo de desfazer** (o balde nunca foi desfazível). Teste e2e reproduz a sequência relatada (balde → tile → mapa) com o mapa já redesenhado.
 - **1.2.3** — (tentativa incompleta) correção: o balde do Tilemap preenchia os dados mas a tela só atualizava na ação seguinte (faltava marcar o mapa para redesenhar; bug vindo da 1.2.0). Teste e2e agora confere o desenho, não só os dados.

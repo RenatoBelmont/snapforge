@@ -1,5 +1,5 @@
 ---
-name: Snapforge — interface nova ("portátil")
+name: Snapforge ("portátil")
 description: A carcaça do aparelho onde os sprites moram; só a arte tem cor saturada.
 colors:
   case-light: "#dcd8cf"
@@ -92,9 +92,9 @@ components:
     size: "34px"
 ---
 
-# Design System: Snapforge — interface nova
+# Design System: Snapforge
 
-Vale **só para `src/v2/`** (a cópia em comparação). A interface atual segue o visual do Waypoint descrito no CLAUDE.md. Se a nova for escolhida, este arquivo sobe para a raiz e o CLAUDE.md é atualizado.
+Design oficial desde a 1.4.0 (testado lado a lado com o visual anterior, do Waypoint, na 1.3.0 e escolhido pelo Renato). CSS em `src/shell.html`; fileira de paleta e LCD em `src/07e_prow.js`.
 
 ## Overview
 
@@ -161,5 +161,5 @@ Mesma superfície de LCD com letra de pixel. Ao abrir o app, a faixa "acende" um
 
 ## Do's and Don'ts
 
-- **Faça:** manter os IDs que o JS usa; testar com `npm run test:v2`; medir contraste nos dois temas.
+- **Faça:** manter os IDs que o JS usa; testar com `npm test`; medir contraste nos dois temas.
 - **Não faça:** colorir a carcaça, tingir o canvas (as cores da arte têm que ser fiéis), esconder ferramentas atrás de menus, usar brilho/halo colorido, fonte externa por rede.

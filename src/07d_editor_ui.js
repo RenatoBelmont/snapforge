@@ -13,7 +13,7 @@ $('#rail').addEventListener('click', (e) => {
   const a = e.target.closest('[data-ra]'); if (!a) return; const k = a.dataset.ra;
   if (k === 'flipH') transformArea('fh'); else if (k === 'flipV') transformArea('fv'); else if (k === 'rotate') transformArea('rot'); else if (k === 'outline') autoOutline(); else if (k === 'clear') clearArea();
 });
-function setTool(t) { if (['line', 'rect', 'ellipse'].includes(t)) st.shape = t; st.tool = t; $$('#rail [data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t)); renderBrush(); updateBar(); render(); }
+function setTool(t) { if (['line', 'rect', 'ellipse'].includes(t)) st.shape = t; st.tool = t; $$('#rail [data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t)); renderBrush(); updateBar(); renderPRow(); render(); }
 function updateBar() {
   $('#undoBtn').disabled = !hist.length; $('#redoBtn').disabled = !future.length;
   $('#penBtn').classList.toggle('on', st.penOnly); $('#penTxt').textContent = st.penOnly ? 'Só Pencil' : 'Dedo pinta';
@@ -182,6 +182,7 @@ function fullRefresh() { cur.frame = clamp(cur.frame, 0, doc.frames.length - 1);
 
 /* ---------- faixa de cores no modo foco (Ponto Cruz) ---------- */
 function renderFaixa() {
+  renderPRow(); // a fileira de paleta embaixo do canvas acompanha toda troca de cor e de paleta
   const f = $('#faixa'); f.classList.toggle('show', st.faixa); if (!document.body.classList.contains('foco') || !st.faixa) return;
   const pal = palList(palName), h = rgb2hex(...st.color.slice(0, 3));
   f.innerHTML = `<button class="er${st.tool === 'eraser' ? ' on' : ''}" data-fx="er" title="Borracha">${ico('eraser')}</button>` + pal.map(c => `<button style="background:${c}" data-fx="${c}" class="${st.tool !== 'eraser' && c === h ? 'on' : ''}" title="${c}"></button>`).join('');

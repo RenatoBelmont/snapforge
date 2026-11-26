@@ -2,16 +2,13 @@
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const D = __dirname, OUT = path.join(D, 'dist'), PWA = path.join(OUT, 'pwa'), ICONS = path.join(D, 'icons');
 const eng = fs.readFileSync(path.join(D, 'src', 'engines.js'), 'utf8');
-const SRC = path.join(D, 'src'), V2 = path.join(SRC, 'v2');
-const readJs = (dir) => fs.readdirSync(dir).filter(f => f.endsWith('.js') && f !== 'engines.js').sort().map(f => `/* ---- ${path.relative(SRC, path.join(dir, f))} ---- */\n` + fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
-const js = readJs(SRC);
-let h = fs.readFileSync(path.join(SRC, 'shell.html'), 'utf8').replace('/*@JS*/', () => js);
+const SRC = path.join(D, 'src');
+const js = fs.readdirSync(SRC).filter(f => f.endsWith('.js') && f !== 'engines.js').sort().map(f => `/* ---- ${f} ---- */\n` + fs.readFileSync(path.join(SRC, f), 'utf8')).join('\n');
+// Fonte de pixel (Silkscreen, OFL) embutida em base64: o app continua offline e em arquivo único
+const fontUri = (f) => 'data:font/woff2;base64,' + fs.readFileSync(path.join(SRC, 'fonts', f)).toString('base64');
+let h = fs.readFileSync(path.join(SRC, 'shell.html'), 'utf8').replace('/*@JS*/', () => js)
+  .replace(/__FONT_SILK_(\d+)__/g, (_, w) => fontUri(`silkscreen-${w}-latin.woff2`));
 const VERSION = (h.match(/const VERSION = '([^']+)'/) || [])[1];
-// Interface nova (cópia para comparação): mesma lógica de src/*.js + ajustes de src/v2/*.js, casca e CSS próprios em src/v2/shell.html.
-// A versão vem do shell principal (__VERSION__), então as duas sempre batem.
-const fontUri = (f) => 'data:font/woff2;base64,' + fs.readFileSync(path.join(V2, 'fonts', f)).toString('base64');
-let h2 = fs.readFileSync(path.join(V2, 'shell.html'), 'utf8').replace('/*@JS*/', () => js + '\n' + readJs(V2)).replace(/__VERSION__/g, VERSION)
-  .replace(/__FONT_SILK_(\d+)(_EXT)?__/g, (_, w, ext) => fontUri(`silkscreen-${w}-latin${ext ? '-ext' : ''}.woff2`));
 // bigorna em pixel com o pixel roxo sendo forjado e uma faísca (ícone próprio, não o do Waypoint)
 const ART = '<path fill="#c9c9d1" d="M1 4h7v1H1zM2 5h6v1H2zM4 6h3v1H4zM3 7h5v1H3z"/><path fill="#8a8a96" d="M1 5h1v1H1zM3 8h5v-1H8v1z"/><path fill="#fbbf24" d="M7 1h1v1H7zM8 2h1v1H8zM6 2h1v1H6z"/><path fill="#fde68a" d="M7 2h1v1H7z"/><path fill="#a78bfa" d="M4 3h2v1H4z"/>';
 const LOGO = `<svg viewBox="0 0 10 10" shape-rendering="crispEdges" aria-hidden="true">${ART}</svg>`;
@@ -31,16 +28,34 @@ const ICON = (pad) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-pad} 
   const uri = (n) => 'data:image/png;base64,' + buf[n].toString('base64');
   if (eng.includes('</script')) throw new Error('engines contém </script');
   const common = (x) => x.replace('/*ENGINES*/', () => eng).replace('__LOGO_SVG__', LOGO).replace('__FAVICON__', uri('favicon-64.png')).replace('__APPLEICON__', uri('apple-touch-icon.png'));
-  h = common(h); h2 = common(h2);
+  h = common(h);
   // 1) arquivo único
   fs.writeFileSync(path.join(OUT, 'snapforge.html'), h.replace('<!--PWA_HEAD-->', ''));
   writePwa(h, PWA, 'snapforge', 'Snapforge — pixel art, sprites e tilemaps', 'Snapforge');
-  // interface nova: arquivo único + PWA separado em dist/pwa-v2 (cache com outro prefixo para os dois service workers não apagarem o cache um do outro)
-  fs.writeFileSync(path.join(OUT, 'snapforge-v2.html'), h2.replace('<!--PWA_HEAD-->', ''));
-  const PWA2 = path.join(OUT, 'pwa-v2'); fs.mkdirSync(path.join(PWA2, 'icons'), { recursive: true }); for (const n of Object.keys(icons)) fs.writeFileSync(path.join(PWA2, 'icons', n), buf[n]);
-  writePwa(h2, PWA2, 'snapforge2', 'Snapforge (nova interface)', 'Snapforge 2');
-  console.log('ok v' + VERSION, 'single', fs.statSync(path.join(OUT, 'snapforge.html')).size, 'v2', fs.statSync(path.join(OUT, 'snapforge-v2.html')).size);
+  retirePwaV2();
+  console.log('ok v' + VERSION, 'single', fs.statSync(path.join(OUT, 'snapforge.html')).size);
 })();
+
+// A interface em teste da 1.3.0 ("Snapforge 2", em dist/pwa-v2/) virou a oficial na 1.4.0. Quem a instalou no iPad
+// recebe só um redirecionamento para dist/pwa/ e um service worker que apaga o próprio cache e se desinstala.
+function retirePwaV2() {
+  const P = path.join(OUT, 'pwa-v2'); fs.mkdirSync(P, { recursive: true });
+  fs.writeFileSync(path.join(P, 'index.html'), `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snapforge</title><meta http-equiv="refresh" content="1; url=../pwa/">
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#222128;color:#b8b2c0;font:15px -apple-system,'Segoe UI',system-ui,sans-serif;text-align:center;padding:16px}a{color:#dd84ba;font-weight:600}</style>
+<script>
+if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => { if (/\\/pwa-v2\\/$/.test(r.scope)) r.unregister(); })).catch(() => {});
+setTimeout(() => location.replace('../pwa/'), 600);
+</script></head>
+<body><p>A interface nova agora é a oficial.<br><a href="../pwa/">Abrir o Snapforge</a> e, no iPad, instale de novo por lá (Compartilhar → Adicionar à Tela de Início).</p></body></html>
+`);
+  fs.writeFileSync(path.join(P, 'sw.js'), `// Aposentado na ${VERSION}: apaga o cache da interface em teste, desinstala-se e leva as abas abertas para o app oficial.
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('snapforge2-')).map((k) => caches.delete(k))))
+  .then(() => self.registration.unregister()).then(() => self.clients.matchAll({ type: 'window' })).then((cs) => cs.forEach((c) => c.navigate('../pwa/')))); });
+`);
+}
 
 // 2) PWA (GitHub Pages/Vercel): manifest + service worker para abrir offline como app no iPad
 function writePwa(h, PWA, prefix, name, shortName) {
