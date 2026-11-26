@@ -116,7 +116,8 @@ function tEnd() {
   if (tRect) { const a = Math.min(tRect.x0, tRect.x1), b = Math.min(tRect.y0, tRect.y1), c = Math.max(tRect.x0, tRect.x1), d = Math.max(tRect.y0, tRect.y1), L = tm.layers[ts.layer];
     for (let y = b; y <= d; y++) for (let x = a; x <= c; x++) { if (L.auto) tSet(L, x, y, 1); else if (ts.random) tStampAt(x, y, false, null); else tStampAt(x, y, false, [a, b]); }
     tRect = null; tStroke.changed = true; mapDirty = true; }
-  if (!tStroke.changed) tHist.pop(); tStroke = null; tRender(); tSave(); renderTLayers();
+  if (!tStroke.changed) tHist.pop(); else mapDirty = true; // o balde mexe nos dados sem marcar o mapa: sem isso a tela só atualizava na ação seguinte
+  tStroke = null; tRender(); tSave(); renderTLayers();
 }
 function tAbort() { if (tStroke && !tStroke.noop && tHist.length) { tRestore(tHist.pop()); } tStroke = null; tRect = null; tRender(); }
 

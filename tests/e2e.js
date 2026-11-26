@@ -163,6 +163,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   ok(await p.evaluate(() => ts.sel.w === 2 && ts.sel.x === 1), 'arrastar no tileset seleciona vários tiles');
   await p.mouse.click(...tat(10, 10)); ok(await p.evaluate(() => tm.layers[0].data[10 * tm.mw + 10] === 1 && tm.layers[0].data[10 * tm.mw + 11] === 2), 'carimbo de 2 tiles');
   await p.keyboard.press('g'); await p.mouse.click(...tat(20, 20)); ok(await tc() > 900, 'balde preenche o mapa');
+  await sleep(100); ok(await p.evaluate(() => mapOff.getContext('2d').getImageData(20 * tm.tw + 8, 20 * tm.th + 8, 1, 1).data[3] > 0), 'balde aparece na tela logo após o clique (não só nos dados)');
   await p.keyboard.press('Control+z');
   await p.click('#tSide [data-tp=tAddAuto]'); ok(await p.evaluate(() => tm.layers[ts.layer].auto), 'camada de autotile');
   await p.mouse.move(tsb.x + tsw * 0.5, tsb.y + 5); await p.mouse.down(); await p.mouse.up();
