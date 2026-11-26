@@ -24,4 +24,6 @@ Pixel Snapper e Sprite Normals: portes para JavaScript dos projetos open source 
 
 Paletas do [Lospec](https://lospec.com/palette-list): RETURN 20 (Patchy Moon), Minty chip (Meson), CC-29 (Alpha6), Resurrect 64 (Kerrie Lake), SLSO8 (Luis Miguel Maldonado), Lost Century (SurrealEmber), Twilight 5 (Star) e CafeArisuki (Arisuki).
 
+Tilesets do Tilemap: Assets - From: **Sprout Lands** - By: **Cup Nooble** (https://cupnooble.itch.io/sprout-lands-asset-pack). Licença do pacote em `src/tilesets/LICENSE-sprout-lands.txt`: uso não comercial, crédito obrigatório, o pacote em si não pode ser redistribuído.
+
 Fonte de pixel: Silkscreen (SIL Open Font License, `src/fonts/OFL.txt`).

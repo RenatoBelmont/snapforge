@@ -41,11 +41,12 @@ const cardOpen = LS.get('cards', { cor: true, pincel: true, camadas: true, anima
 const cardShell = (id, title, acts = '') => `<div class="card${cardOpen[id] === false ? ' closed' : ''}" data-card="${id}" style="--dc:var(--c-editor)"><div class="card-h" data-toggle="${id}"><span class="dot"></span>${title}${acts ? `<span class="acts">${acts}</span>` : '<span class="spacer"></span>'}${ico('chevron')}</div><div class="card-b" id="cb-${id}"></div></div>`;
 const tbx2 = (k, icon, title, cls = '') => `<button class="btn sm ic ${cls}" data-pc="${k}" title="${esc(title)}" aria-label="${esc(title)}">${ico(icon)}</button>`;
 function buildSide() {
-  $('#side').innerHTML = cardShell('cor', 'Cor') + cardShell('pincel', 'Pincel e vista') +
+  // Canvas em 2º (pedido do Renato), fechado por padrão
+  $('#side').innerHTML = cardShell('cor', 'Cor') + cardShell('canvas', 'Canvas') + cardShell('pincel', 'Pincel e vista') +
     cardShell('camadas', 'Camadas', tbx2('layAdd', 'plus', 'Nova camada') + tbx2('layDup', 'copy', 'Duplicar camada (⌘D)') + tbx2('layMerge', 'merge', 'Mesclar com a de baixo') + tbx2('layDel', 'trash', 'Excluir camada', 'danger')) +
-    cardShell('animacao', 'Animação', tbx2('frAdd', 'plus', 'Novo quadro') + tbx2('frDup', 'copy', 'Duplicar quadro') + tbx2('frDel', 'trash', 'Excluir quadro', 'danger')) +
-    cardShell('canvas', 'Canvas');
-  $$('#side .card-h svg:last-child').forEach(s => s.classList.add('cv'));
+    cardShell('animacao', 'Animação', tbx2('frAdd', 'plus', 'Novo quadro') + tbx2('frDup', 'copy', 'Duplicar quadro') + tbx2('frDel', 'trash', 'Excluir quadro', 'danger'));
+  // só a seta do cabeçalho gira ao fechar; antes "svg:last-child" pegava também o ícone de cada botão de ação e eles "deitavam"
+  $$('#side .card-h > svg:last-child').forEach(s => s.classList.add('cv'));
   renderColor(); renderBrush(); renderLayers(); renderFrames(); renderCanvasCard();
 }
 $('#side').addEventListener('click', (e) => {
@@ -163,7 +164,7 @@ function renderCanvasCard() {
   const b = $('#cb-canvas'); if (!b) return; const mode = st.resizeMode || 'anchor';
   b.innerHTML = `<div class="row"><span class="small muted">Atual</span><b class="mono small">${doc.w}×${doc.h}</b></div>
     <div class="chips">${SIZES.map(s => `<button data-size="${s}" class="${doc.w === s && doc.h === s ? 'on' : ''}">${s}</button>`).join('')}</div>
-    <div class="seg" style="align-self:flex-start"><button data-rm="anchor" class="${mode === 'anchor' ? 'on' : ''}">Manter desenho</button><button data-rm="scale" class="${mode === 'scale' ? 'on' : ''}">Redimensionar</button></div>
+    <div class="lbl">Ao mudar o tamanho<div class="chips"><button data-rm="anchor" class="${mode === 'anchor' ? 'on' : ''}" style="font-family:var(--ui)">Manter desenho</button><button data-rm="scale" class="${mode === 'scale' ? 'on' : ''}" style="font-family:var(--ui)">Redimensionar</button></div></div>
     <div class="grid2"><label class="lbl">Largura<input class="input-field" id="cvW" inputmode="numeric" value="${doc.w}"></label><label class="lbl">Altura<input class="input-field" id="cvH" inputmode="numeric" value="${doc.h}"></label></div>
     <button class="btn sm" data-pc="resize">Aplicar tamanho personalizado</button>
     <label class="lbl">Grade maior a cada<select class="input-field" id="majorSel">${[0, 4, 8, 16, 32].map(n => `<option value="${n}"${n === st.majorGrid ? ' selected' : ''}>${n ? n + ' px' : 'desligada'}</option>`).join('')}</select></label>`;

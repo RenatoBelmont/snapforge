@@ -1,6 +1,6 @@
 # Snapforge — guia do projeto (para o Claude Code)
 
-Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.7.1**.
+Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.8.0**.
 
 Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad com Apple Pencil** e também no Windows (Chrome/Firefox). Interface 100% em **português do Brasil**.
 
@@ -31,8 +31,9 @@ src/
   engines.js         Pixel Snapper e Sprite Normals (porte JS dos projetos Rust da Sprite Fusion)
   00_base.js … 11_init.js   o app, concatenado em ordem alfabética
   fonts/             Silkscreen (OFL), embutida em base64 no build — sem rede
+  tilesets/          Sprout Lands (Basic), de Cup Nooble: 17 PNGs embutidos no build + LICENSE-sprout-lands.txt
 tests/
-  e2e.js             135 verificações no navegador (Playwright + Chromium)
+  e2e.js             144 verificações no navegador (Playwright + Chromium)
   engines-vs-rust.js compara os motores JS com os binários Rust originais
   snapper-structure.js  idem, checando grade e cor-base célula a célula
   fixtures/          imagens de teste + make_fixtures.js que as gera
@@ -92,6 +93,7 @@ Scripts clássicos concatenados, todos no mesmo escopo global (sem `import`/`exp
 | `08_snapper.js` | Lupa sincronizada (`setupLoupe`), tela do Pixel Snapper, prompt para o ChatGPT |
 | `09_normal.js` | Tela do Normal Map + prévia de luz interativa |
 | `10_tilemap.js` | Editor de tilemap completo (tileset, pincel/carimbo, autotile, camadas, export Tiled/PNG/JSON, ZIP sem compressão) |
+| `10a_tilelib.js` | Biblioteca de tilesets prontos (`TILESET_LIB` em listas: Terreno, Terra arada, Construções, Natureza e objetos; `TILESET_FILES` é preenchido pelo build a partir de `src/tilesets/`), `openTilesetLib` (menu "Prontos"), `loadLibTileset` |
 | `11_init.js` | Abas, tema, bloqueio de zoom da página no iPad, gravação imediata ao sair, `init()` |
 
 ## Dados e persistência
@@ -137,12 +139,12 @@ Para reverificar: clone os dois repositórios numa pasta `sf-repos/` ao lado do 
 
 ## Tilemap
 
-- Tileset: PNG em grade, tile de 8 a 64 px (botões) ou do editor/Snapper. Tileset de exemplo gerado em código (`demoTileset`).
+- Tileset: PNG em grade, tile de 8 a 64 px (botões), do editor/Snapper ou da biblioteca **"Prontos"**: os tilesets do **Sprout Lands (Basic), de Cup Nooble** (todos com tile de 16 px), separados em listas. Mapa novo começa com a **Grama**. O antigo tileset de exemplo gerado em código saiu na 1.8.0 (mapas salvos mantêm o tileset que já têm). **Licença do pacote** (`src/tilesets/LICENSE-sprout-lands.txt`): uso **não comercial**, crédito obrigatório a Cup Nooble (está no menu e no README), proibido redistribuir o pacote em si; os dois "Bitmask references" do pacote são diagramas e não foram incluídos.
 - Ferramentas: carimbo (seleção retangular de vários tiles; toque pinta o bloco, arrastar ladrilha a partir do ponto inicial), borracha, balde, retângulo, conta-gotas de tile, **seleção** (S), mão; modo **aleatório** (sorteia da seleção).
 - **Pincel do mapa** (`ts.brush`, 1–8 tiles, quadrado N×N, módulo "Pincel" e teclas `[` `]`): vale para tile único, aleatório, autotile e borracha (`tBrushApplies`/`tPaintAt`); um carimbo de vários tiles usa o próprio tamanho.
 - **Seleção no mapa** (`ts.msel`, camada atual): arrastar seleciona; arrastar dentro move o conteúdo (`tShiftSel`, um passo de desfazer; o que sai do mapa se perde, como no editor); toque sem arrastar tira a seleção. Copiar/recortar/colar/apagar (`tCopy`, `tPaste`, `tDeleteSel`) pela barra flutuante ou ⌘C/⌘X/⌘V/Delete, ⌘A seleciona tudo, Esc tira. Colar entre tipos de camada: autotile → normal cola o tile resolvido; normal → autotile vira "tem terreno"; células vazias do recorte não apagam o que está embaixo. `msel` entra nos snapshots do desfazer.
 - Ordem do painel: Tileset, **Camadas**, Pincel, Mapa — Camadas logo abaixo do tileset para criar autotile e tocar nas regras sem rolar o painel no iPad.
-- **Autotile de 16 combinações** (máscara de 4 vizinhos: cima=1, direita=2, baixo=4, esquerda=8). Cada camada de autotile guarda `cells` (tem terreno ou não) e `rules[16]` (tile de cada máscara); falta de regra cai em `rules[15]`. As regras são atribuídas tocando no quadrado e depois no tile, **no mesmo card do tileset** (para não rolar o painel no iPad).
+- **Autotile de 16 combinações** (máscara de 4 vizinhos: cima=1, direita=2, baixo=4, esquerda=8). Cada camada de autotile guarda `cells` (tem terreno ou não) e `rules[16]` (tile de cada máscara); falta de regra cai em `rules[15]`. As regras são atribuídas tocando no quadrado e depois no tile, **no mesmo card do tileset**, em **8 quadrados por linha** (para tileset e regras caberem juntos na tela do iPad sem rolar o painel; com 4 por linha e um tileset grande, o tileset saía da tela).
 - Exporta: **Tiled `.tmj`** (gid = índice + 1, 0 = vazio; vem num `.zip` com `tileset.png`, ZIP sem compressão feito à mão em `zipStore`), PNG e JSON simples. Camadas de autotile saem resolvidas.
 - Redimensionar o mapa ancora no canto superior esquerdo (corta o resto; ⌘Z desfaz).
 
@@ -160,6 +162,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 
 ## Histórico
 
+- **1.8.0** — **Tilesets do Sprout Lands** (Cup Nooble) no Tilemap, em listas, no lugar do tileset de exemplo; Grama como padrão. Ajustes pedidos no iPad: **bigorna** sobre uma placa escura (sumia no tema claro); barra de comandos com espaço menor entre botões e o **nome do projeto encolhendo com "…"** para o botão de tela cheia nunca ser cortado (editor e Tilemap iguais); **xadrez do fundo do Tilemap preso ao mapa** (antes as casas tinham 16 px fixos de tela e escorregavam no zoom); módulo **Canvas em 2º** no painel; "Manter desenho/Redimensionar" como chips sem quebra de palavra (`white-space:nowrap` em chips e segmentados); **ícones dos botões dos módulos não giram mais** ao recolher (o seletor `.card-h svg:last-child` pegava os ícones das ações; agora `.card-h > svg:last-child`); regras de autotile em 8 por linha. 144 verificações.
 - **1.7.1** — **toques com 2/3 dedos como no Procreate**: com "Dedo pinta" o toque de dois dedos não desfazia (o 1º dedo, que chega antes, começava um traço e o gesto era tratado como pinça); agora só vira pinça se o 1º dedo já desenhava há > 250 ms ou > 14 px. Segurar 2/3 dedos desfaz/refaz em sequência, acelerando; o toque não mexe mais no zoom. No Tilemap, começar um traço apagava a pilha de refazer mesmo quando o traço era cancelado ou não mudava nada (corrigido como no editor). 135 verificações.
 - **1.7.0** — Tilemap: **ferramenta de seleção** (arrastar seleciona, arrastar dentro move, copiar/recortar/colar/apagar, ⌘A, Esc, tudo com desfazer) e **tamanho de pincel** 1–8 tiles. **Barra de seleção flutuante** sobre a tela, no editor e no mapa (antes ficava na barra de comandos e, com seleção ativa, a do editor transbordava 162 px e escondia zoom/tela cheia). Seleção, cursor e grade maior desenhados em **ameixa** (`cssRgb('--plum')`), não mais no âmbar antigo. Painel do mapa reordenado (Camadas logo abaixo do tileset). 128 verificações.
 - **1.6.0** — **importar paletas**: "Do Lospec" (link ou nome; exceção de rede da regra 4, liberada pelo Renato) e "Arquivo" (.hex, .gpl, .pal JASC/RIFF, offline; seletor sem filtro de extensão porque o Safari do iPad deixa cinza .gpl/.pal). **Pincéis**: tamanhos 1, 2, 3, 4, 5, 6, 8, 10, 12 e 16 px (botões e teclas `[` `]`), formato redondo ou quadrado em qualquer tamanho (antes os pares eram sempre quadrados), ambos salvos no aparelho. Testes com o Lospec simulado (115 verificações).

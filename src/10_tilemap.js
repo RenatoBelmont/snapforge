@@ -37,15 +37,6 @@ function setTileset(img, name, tile) {
 }
 function loadTsImage(cb) { if (!tm.tileset) { tsImg = null; tsCols = tsRows = 0; cb && cb(); return; } const im = new Image(); im.onload = () => { tsImg = im; tsCols = Math.max(1, Math.floor(im.width / tm.tw)); tsRows = Math.max(1, Math.floor(im.height / tm.th)); mapDirty = true; cb && cb(); };
   im.onerror = () => { tm.tileset = null; tsImg = null; tsCols = tsRows = 0; mapDirty = true; toast('Não consegui abrir a imagem do tileset'); cb && cb(); }; im.src = tm.tileset.url; }
-function demoTileset() { // 8 tiles de 16 px: grama, terra, água, pedra, areia, madeira, flor, parede
-  const T = 16, cols = ['#38b764', '#a0663a', '#3b5dc9', '#94b0c2', '#ffcd75', '#b86f50', '#38b764', '#566c86'], c = document.createElement('canvas'); c.width = T * 8; c.height = T; const x = c.getContext('2d');
-  let s = 3; const rnd = () => (s = (s * 1103515245 + 12345) % 2147483648) / 2147483648;
-  cols.forEach((col, i) => { x.fillStyle = col; x.fillRect(i * T, 0, T, T); for (let k = 0; k < 14; k++) { x.fillStyle = k % 2 ? 'rgba(0,0,0,.18)' : 'rgba(255,255,255,.18)'; x.fillRect(i * T + Math.floor(rnd() * T), Math.floor(rnd() * T), 1, 1); }
-    if (i === 6) { x.fillStyle = '#ef7d57'; x.fillRect(i * T + 5, 5, 2, 2); x.fillRect(i * T + 10, 9, 2, 2); x.fillStyle = '#ffcd75'; x.fillRect(i * T + 7, 11, 2, 2); }
-    if (i === 7) { x.fillStyle = '#333c57'; for (let yy = 3; yy < T; yy += 5) x.fillRect(i * T, yy, T, 1); for (let yy = 0; yy < T; yy += 5) x.fillRect(i * T + ((yy / 5) % 2 ? 4 : 11), yy, 1, 4); }
-    x.strokeStyle = 'rgba(0,0,0,.25)'; x.strokeRect(i * T + .5, .5, T - 1, T - 1); });
-  return { width: c.width, height: c.height, data: x.getImageData(0, 0, c.width, c.height).data };
-}
 const tileAt = (L, i) => { if (!L.auto) return L.data[i]; if (!L.cells[i]) return -1; const x = i % tm.mw, y = (i / tm.mw) | 0, on = (xx, yy) => xx >= 0 && yy >= 0 && xx < tm.mw && yy < tm.mh && L.cells[yy * tm.mw + xx];
   const m = (on(x, y - 1) ? 1 : 0) | (on(x + 1, y) ? 2 : 0) | (on(x, y + 1) ? 4 : 0) | (on(x - 1, y) ? 8 : 0); if (L.rules[m] >= 0) return L.rules[m]; if (L.rules[15] >= 0) return L.rules[15]; return L.rules.find(r => r >= 0) ?? -1; };
 function drawTile(ctx, t, dx, dy, s = 1) { if (t < 0 || !tsImg) return; ctx.drawImage(tsImg, (t % tsCols) * tm.tw, Math.floor(t / tsCols) * tm.th, tm.tw, tm.th, dx, dy, tm.tw * s, tm.th * s); }
@@ -62,7 +53,9 @@ function tDraw() {
   tRaf = 0; if (mapDirty) rebuildMap(); const d = devicePixelRatio || 1, z = ts.zoom, W = tm.mw * tm.tw * z, H = tm.mh * tm.th * z;
   tcx.setTransform(1, 0, 0, 1, 0, 0); tcx.clearRect(0, 0, tcv.width, tcv.height); tcx.setTransform(d, 0, 0, d, 0, 0);
   const cs = getComputedStyle(document.documentElement), ca = `rgb(${cs.getPropertyValue('--check-a').trim().replace(/ /g, ',')})`, cb = `rgb(${cs.getPropertyValue('--check-b').trim().replace(/ /g, ',')})`;
-  tcx.fillStyle = cb; tcx.fillRect(ts.ox, ts.oy, W, H); tcx.fillStyle = ca; const cell = 16; tcx.save(); tcx.beginPath(); tcx.rect(ts.ox, ts.oy, W, H); tcx.clip();
+  tcx.fillStyle = cb; tcx.fillRect(ts.ox, ts.oy, W, H); tcx.fillStyle = ca;
+  // xadrez preso ao mapa, como no editor: cada tile cobre 2×2 casas (dobra quando ficaria miúdo), então acompanha zoom e movimento
+  let cm = Math.max(1, tm.tw / 2); while (cm * z < 6) cm *= 2; const cell = cm * z; tcx.save(); tcx.beginPath(); tcx.rect(ts.ox, ts.oy, W, H); tcx.clip();
   for (let y = 0; y * cell < H; y++) for (let x = y % 2; x * cell < W; x += 2) tcx.fillRect(ts.ox + x * cell, ts.oy + y * cell, cell, cell); tcx.restore();
   tcx.imageSmoothingEnabled = false; tcx.drawImage(mapOff, ts.ox, ts.oy, W, H);
   const tw = tm.tw * z, th = tm.th * z;
@@ -273,7 +266,7 @@ function renderTSide() {
   // ordem: Camadas logo abaixo do tileset (criar autotile e tocar nas regras sem rolar o painel no iPad); Mapa, o menos usado, por último
   $('#tSide').innerHTML = tCard('tileset', 'Tileset') + tCard('tcamadas', 'Camadas', tb3('tAdd', 'plus', 'Nova camada') + tb3('tAddAuto', 'auto', 'Nova camada de autotile') + tb3('tDel', 'trash', 'Excluir camada', 'danger')) + tCard('tpincel', 'Pincel') + tCard('mapa', 'Mapa');
   const tb = $('#tb-tileset');
-  tb.innerHTML = `<div class="row wrap"><button class="btn sm" data-tp="tsImport">${ico('upload')}Importar PNG</button><button class="btn sm" data-tp="tsEditor">Do editor</button><button class="btn sm" data-tp="tsDemo">Exemplo</button></div>
+  tb.innerHTML = `<div class="row wrap"><button class="btn sm" data-tp="tsImport">${ico('upload')}Importar PNG</button><button class="btn sm" data-tp="tsEditor">Do editor</button><button class="btn sm" data-tp="tsLib" data-pp-trigger title="Tilesets prontos do Sprout Lands, separados por listas">${ico('tiles')}Prontos${ico('chevron')}</button></div>
     <div class="lbl">Tamanho do tile<div class="chips" id="tTileSz">${TILE_SIZES.map(s => `<button data-ts="${s}" class="${tm.tw === s && tm.th === s ? 'on' : ''}">${s}</button>`).join('')}</div></div>
     ${tsImg ? `<div class="tileset-wrap checker" id="tsWrap"><canvas class="px" id="tsCv"></canvas></div><span class="hint">${tsCols * tsRows} tiles · toque num tile ou arraste para selecionar vários (vira um carimbo). Seleção: ${ts.sel.w}×${ts.sel.h}.</span>${L && L.auto ? '<div id="tb-auto" class="stack" style="gap:8px"></div>' : ''}` : '<div class="note">Importe um tileset (PNG com os tiles em grade) ou use o de exemplo para testar.</div>'}`;
   const mb = $('#tb-mapa');
@@ -294,7 +287,7 @@ function renderTLayers() {
 const MASK_SVG = (m) => `<svg viewBox="0 0 30 30"><rect x="10" y="10" width="10" height="10" fill="currentColor"/>${m & 1 ? '<rect x="10" y="0" width="10" height="10" fill="currentColor"/>' : ''}${m & 2 ? '<rect x="20" y="10" width="10" height="10" fill="currentColor"/>' : ''}${m & 4 ? '<rect x="10" y="20" width="10" height="10" fill="currentColor"/>' : ''}${m & 8 ? '<rect x="0" y="10" width="10" height="10" fill="currentColor"/>' : ''}</svg>`;
 function renderAuto() {
   const b = $('#tb-auto'); if (!b) return; const L = tm.layers[ts.layer];
-  b.innerHTML = `<b class="small">Regras de autotile · ${esc(L.name)}</b><span class="hint">Cada quadrado é uma combinação de vizinhos (o desenho mostra quais lados têm terreno). Toque num quadrado e depois num tile do tileset. O quadrado cheio (todos os lados) é o padrão para os que faltarem.</span>
+  b.innerHTML = `<b class="small">Regras de autotile · ${esc(L.name)}</b><span class="hint">Toque numa combinação de vizinhos e depois no tile do tileset. A cheia (último quadrado) vale para as que faltarem.</span>
     <div class="slots">${L.rules.map((t, m) => `<button class="slot${ts.slot === m ? ' on' : ''}" data-slot="${m}" title="Vizinhos: ${['cima', 'direita', 'baixo', 'esquerda'].filter((_, k) => m & (1 << k)).join(', ') || 'nenhum'}">${t >= 0 ? `<canvas class="px" data-st="${t}"></canvas>` : MASK_SVG(m)}</button>`).join('')}</div>
     <div class="row wrap"><button class="btn sm" data-tp="autoFill">Usar o tile selecionado em todos</button><button class="btn sm danger" data-tp="autoClear">Limpar regras</button></div>`;
   $$('#tb-auto canvas[data-st]').forEach(c => { c.width = tm.tw; c.height = tm.th; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; drawTile(x, +c.dataset.st, 0, 0); });
@@ -326,9 +319,9 @@ $('#tSide').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-tp]'); if (!b) return; const k = b.dataset.tp, L = tm.layers[ts.layer];
   if (k === 'tsImport') { const f = await pickFile('image/png,image/gif,image/webp,image/jpeg'); if (f) { try { setTileset(await withBusy('Abrindo tileset…', () => fileToImage(f)), f.name.replace(/\.[^.]+$/, '')); } catch (er) { toast(er.message); } } }
   else if (k === 'tsEditor') { setTileset(doc.frames.length > 1 ? sheetImage() : composite(cur.frame), doc.name); }
-  else if (k === 'tsDemo') setTileset(demoTileset(), 'exemplo', 16);
+  else if (k === 'tsLib') openTilesetLib(b);
   else if (k === 'tResize') tResizeMap(clamp(parseInt($('#tMw').value) || tm.mw, 1, 256), clamp(parseInt($('#tMh').value) || tm.mh, 1, 256));
-  else if (k === 'tAdd') addTLayer(false); else if (k === 'tAddAuto') { addTLayer(true); toast('Camada de autotile: defina as regras no card abaixo'); }
+  else if (k === 'tAdd') addTLayer(false); else if (k === 'tAddAuto') { addTLayer(true); toast('Camada de autotile: defina as regras no módulo Tileset, logo abaixo da imagem'); }
   else if (k === 'tDel') { if (tm.layers.length <= 1) return toast('Precisa ter ao menos uma camada'); tPush(); tm.layers.splice(ts.layer, 1); ts.layer = Math.max(0, ts.layer - 1); mapDirty = true; renderTSide(); tRender(); tSave(); }
   else if (k === 'tUp' || k === 'tDown') { const j = ts.layer + (k === 'tUp' ? 1 : -1); if (j < 0 || j >= tm.layers.length) return; tPush(); [tm.layers[ts.layer], tm.layers[j]] = [tm.layers[j], tm.layers[ts.layer]]; ts.layer = j; mapDirty = true; renderTLayers(); tRender(); tSave(); }
   else if (k === 'tRen') { const f = await modal('Renomear camada', `<input class="input-field" id="tln" value="${esc(L.name)}">`, [['Cancelar', null], ['Salvar', '__form', 'primary']]); if (f) { L.name = $('#tln', f).value.trim() || L.name; renderTLayers(); tRender(); tSave(); } }
@@ -390,7 +383,8 @@ async function tFile(v) {
 $('#v-tile .stage-bar').addEventListener('click', (e) => { const b = e.target.closest('[data-tf]'); if (b) tFile(b.dataset.tf); });
 function initTilemap() {
   try { const o = LS.get('tilemap', null); if (o) tDeserialize(o); else newMap(32, 32, 16, 16); } catch { newMap(32, 32, 16, 16); }
-  if (!tm.tileset) { const img = demoTileset(); tm.tw = tm.th = 16; tm.tileset = { name: 'exemplo', url: imgToCanvas(img).toDataURL('image/png'), w: img.width, h: img.height }; }
+  // mapa novo (ou sem tileset) começa com a Grama do Sprout Lands; mapas salvos mantêm o tileset que já têm
+  if (!tm.tileset) { const [n, f] = TILESET_DEFAULT; tm.tw = tm.th = 16; tm.tileset = { name: libTilesetName(n), url: TILESET_FILES[f], w: 0, h: 0 }; }
   loadTsImage(() => { renderTSide(); tRender(); });
   let lastTW = 0; new ResizeObserver(() => { if (!viewOn('tile')) return; const w = tArea.clientWidth; tResize(); if (lastTW && Math.abs(w - lastTW) > 60) tFit(); lastTW = w; }).observe(tArea);
 }

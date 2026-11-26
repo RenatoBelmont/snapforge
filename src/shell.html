@@ -105,11 +105,11 @@ input[type=range]{width:100%;height:28px;accent-color:rgb(var(--plum));margin:0}
 
 /* segmentado e chips: fileira de teclas encaixadas numa canaleta */
 .seg{display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:rgb(var(--case-lo));box-shadow:inset 0 1px 2px rgb(var(--shadow)/.18)}
-.seg button{min-width:32px;height:30px;padding:0 9px;border-radius:7px;font-size:12.5px;font-weight:700;color:rgb(var(--ink-2));transition:background-color .15s,color .15s}
+.seg button{white-space:nowrap;min-width:32px;height:30px;padding:0 9px;border-radius:7px;font-size:12.5px;font-weight:700;color:rgb(var(--ink-2));transition:background-color .15s,color .15s}
 .seg button:hover{color:rgb(var(--ink))}
 .seg button.on{background:rgb(var(--case-hi));color:rgb(var(--ink));box-shadow:0 1px 2px rgb(var(--shadow)/.25),inset 0 -2px 0 rgb(var(--plum))}
 .chips{display:flex;flex-wrap:wrap;gap:5px}
-.chips button{min-width:40px;height:32px;padding:0 9px;border-radius:8px;font:700 12.5px var(--ui);color:rgb(var(--ink-2));
+.chips button{white-space:nowrap;min-width:40px;height:32px;padding:0 9px;border-radius:8px;font:700 12.5px var(--ui);color:rgb(var(--ink-2));
   background:rgb(var(--case-hi));border:1px solid rgb(var(--edge));border-bottom-width:2px;transition:transform .09s var(--ease),background-color .15s}
 .chips button:hover{color:rgb(var(--ink))}
 .chips button:active{transform:translateY(1px)}
@@ -121,7 +121,8 @@ canvas.px{image-rendering:pixelated;image-rendering:crisp-edges}
 /* ---------- cabeçalho: faixa superior da carcaça ---------- */
 .top{display:flex;align-items:center;gap:14px;height:52px;padding:0 14px;flex:none;background:rgb(var(--case))}
 .brand{display:flex;align-items:center;gap:9px}
-.brand svg{width:26px;height:26px}
+/* a bigorna fica sobre uma placa da cor da "tela", como no ícone do app: legível na carcaça clara e na escura */
+.brand svg{width:30px;height:30px;padding:4px;border-radius:8px;background:rgb(var(--bezel));box-shadow:inset 0 1px 3px rgb(0 0 0/.45),0 0 0 1px rgb(var(--edge))}
 .brand>span:not(.ver){font:700 15px var(--pix);letter-spacing:.02em}
 .ver{font:400 11px var(--pix);color:rgb(var(--ink-3));padding-top:2px}
 /* abas como cartuchos: etiqueta colorida quadrada + nome; a ativa fica encaixada (em relevo) */
@@ -162,10 +163,11 @@ canvas.px{image-rendering:pixelated;image-rendering:crisp-edges}
 
 /* palco: barra de comandos em cima, a "tela" (moldura escura) no meio, paleta e LCD embaixo */
 .stage{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;container-type:inline-size}
-.stage-bar{display:flex;align-items:center;gap:6px;flex:none;overflow-x:auto;scrollbar-width:none;padding:1px 0 2px}
+.stage-bar{display:flex;align-items:center;gap:4px;flex:none;overflow-x:auto;scrollbar-width:none;padding:1px 0 2px}
 .stage-bar::-webkit-scrollbar{display:none}.stage-bar>*{flex:none}
-.stage-bar .sep{width:1px;height:24px;background:rgb(var(--edge));margin:0 3px}
-#docName{max-width:200px;overflow:hidden;text-overflow:ellipsis;display:block;line-height:30px;background:transparent;border-color:transparent;box-shadow:none;font-weight:700;font-size:14px}
+.stage-bar .sep{width:1px;height:24px;background:rgb(var(--edge));margin:0 2px}
+/* o nome do projeto é a peça que encolhe (com "…") quando a fonte do aparelho é mais larga: os botões nunca saem da barra */
+#docName{flex:0 1 auto;min-width:44px;max-width:200px;overflow:hidden;text-overflow:ellipsis;display:block;line-height:30px;background:transparent;border-color:transparent;box-shadow:none;font-weight:700;font-size:14px}
 #docName:hover{background:rgb(var(--case-hi));border-color:rgb(var(--edge))}
 .stage-mid{flex:1;min-height:0;display:flex;gap:8px}
 .area{flex:1;min-width:0;position:relative;overflow:hidden;touch-action:none;border-radius:16px;background:rgb(var(--bezel));
@@ -250,6 +252,12 @@ body.foco .faixa.show{display:flex}
 .pp-item .cells{display:flex;flex-wrap:wrap;gap:2px}.pp-item .cells i{width:14px;height:14px;border-radius:3px;box-shadow:inset 0 0 0 1px rgb(0 0 0/.15)}
 .pp-item .hint{font-size:12px}
 .pp-item .del{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;color:rgb(var(--ink-3))}.pp-item .del:hover{color:rgb(var(--led-err));background:rgb(var(--led-err)/.12)}.pp-item .del svg{width:14px;height:14px}
+/* biblioteca de tilesets: listas com título e a imagem de cada tileset sobre a "tela" */
+.pp-group{font-size:12px;font-weight:700;color:rgb(var(--ink-2));padding:10px 10px 4px}
+.pp-group:first-child{padding-top:4px}
+.ts-lib .pp-item img{display:block;max-width:100%;max-height:72px;width:auto;height:auto;min-height:24px;image-rendering:pixelated;padding:4px;border-radius:7px;background:rgb(var(--bezel));align-self:flex-start}
+.pp-credit{font-size:12px;color:rgb(var(--ink-3));padding:8px 10px 4px;border-top:1px solid rgb(var(--case-lo));margin-top:6px}
+[data-tp="tsLib"] svg:last-child{width:13px;height:13px;opacity:.7}
 
 /* camadas e quadros */
 .layers{display:flex;flex-direction:column;gap:3px}
@@ -291,7 +299,8 @@ pre.prompt{white-space:pre-wrap;font:12px/1.55 var(--mono);background:rgb(var(--
 /* tilemap */
 .tileset-wrap{position:relative;overflow:auto;border-radius:10px;max-height:260px;touch-action:pan-x pan-y;background:rgb(var(--bezel));box-shadow:inset 0 1px 4px rgb(0 0 0/.35)}
 .tileset-wrap canvas{display:block}
-.slots{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+/* 8 regras por linha (2 fileiras): o tileset continua à vista enquanto se toca regra → tile, sem rolar o painel no iPad */
+.slots{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
 .slot{aspect-ratio:1;border-radius:9px;position:relative;overflow:hidden;background:rgb(var(--case-lo));color:rgb(var(--ink-2));box-shadow:inset 0 0 0 1px rgb(var(--edge))}
 .slot.on{box-shadow:0 0 0 2px rgb(var(--case-hi)),0 0 0 4px rgb(var(--plum))}
 .slot canvas{position:absolute;inset:0;width:100%;height:100%}
@@ -476,7 +485,7 @@ pre.prompt{white-space:pre-wrap;font:12px/1.55 var(--mono);background:rgb(var(--
 <script id="engines-src">/*ENGINES*/</script>
 <script>
 'use strict';
-const VERSION = '1.7.1';
+const VERSION = '1.8.0';
 /*@JS*/
 </script>
 </body>

@@ -146,6 +146,8 @@ Cantos generosos e consistentes por hierarquia: 7 px (miúdos), 8–10 px (tecla
 
 ## Components
 
+### Marca
+A bigorna em pixel fica sobre uma placa da cor da moldura da tela (`bezel`), 30 px com cantos de 8 px, como no ícone do app instalado: legível na carcaça clara e na escura.
 ### Buttons (teclas)
 Relevo com borda inferior mais funda; ao apertar descem 1 px (90 ms). Principal em ameixa. Desativado a 42% sem sombra.
 ### Ferramentas

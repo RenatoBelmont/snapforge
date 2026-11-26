@@ -6,7 +6,10 @@ const SRC = path.join(D, 'src');
 const js = fs.readdirSync(SRC).filter(f => f.endsWith('.js') && f !== 'engines.js').sort().map(f => `/* ---- ${f} ---- */\n` + fs.readFileSync(path.join(SRC, f), 'utf8')).join('\n');
 // Fonte de pixel (Silkscreen, OFL) embutida em base64: o app continua offline e em arquivo único
 const fontUri = (f) => 'data:font/woff2;base64,' + fs.readFileSync(path.join(SRC, 'fonts', f)).toString('base64');
-let h = fs.readFileSync(path.join(SRC, 'shell.html'), 'utf8').replace('/*@JS*/', () => js)
+// Tilesets prontos (src/tilesets/*.png) embutidos em data URL no módulo 10a_tilelib.js
+const TS_DIR = path.join(SRC, 'tilesets');
+const tilesets = Object.fromEntries(fs.readdirSync(TS_DIR).filter(f => f.endsWith('.png')).sort().map(f => [f, 'data:image/png;base64,' + fs.readFileSync(path.join(TS_DIR, f)).toString('base64')]));
+let h = fs.readFileSync(path.join(SRC, 'shell.html'), 'utf8').replace('/*@JS*/', () => js.replace('/*@TILESETS*/{}', () => JSON.stringify(tilesets)))
   .replace(/__FONT_SILK_(\d+)__/g, (_, w) => fontUri(`silkscreen-${w}-latin.woff2`));
 const VERSION = (h.match(/const VERSION = '([^']+)'/) || [])[1];
 // bigorna em pixel com o pixel roxo sendo forjado e uma faísca (ícone próprio, não o do Waypoint)

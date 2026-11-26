@@ -3,7 +3,7 @@
 // opts: { value, auto (inclui "Automática"), doc (inclui "Paleta do editor"), onChange(value) }
 let ppOpen = null;
 function closePP() { if (ppOpen) { ppOpen.remove(); ppOpen = null; } }
-document.addEventListener('pointerdown', (e) => { if (ppOpen && !ppOpen.contains(e.target) && !e.target.closest('.pp-btn')) closePP(); }, true);
+document.addEventListener('pointerdown', (e) => { if (ppOpen && !ppOpen.contains(e.target) && !e.target.closest('.pp-btn,[data-pp-trigger]')) closePP(); }, true);
 const stripHtml = (cols, max = 24) => { if (!cols.length) return '<span class="strip" style="background:linear-gradient(90deg,#ef4444,#f59e0b,#22c55e,#3b82f6,#a855f7)"></span>'; const step = Math.max(1, Math.ceil(cols.length / max)); return `<span class="strip">${cols.filter((_, i) => i % step === 0).map(c => `<i style="background:${c}"></i>`).join('')}</span>`; };
 function palEntries(opts) {
   const list = [];

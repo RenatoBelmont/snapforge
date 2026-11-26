@@ -152,28 +152,28 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   ok(!(await p.evaluate(() => /generativelanguage|groq|openai/.test(document.documentElement.innerHTML))), 'nenhuma chamada de API de IA no app');
   // ---- Tilemap
   await p.click('.tab[data-v=tile]'); await sleep(400);
-  ok(await p.evaluate(() => tsCols === 8 && tm.mw === 32), 'tilemap abre com tileset de exemplo');
+  ok(await p.evaluate(() => tsCols === 11 && tsRows === 7 && tm.tileset.name === 'Sprout Lands · Grama' && tm.mw === 32), 'tilemap abre com a Grama do Sprout Lands');
   const tb = await p.locator('#tcv').boundingBox(); const tg = await p.evaluate(() => ({ z: ts.zoom, ox: ts.ox, oy: ts.oy, tw: tm.tw }));
   const tat = (x, y) => [tb.x + tg.ox + (x + .5) * tg.tw * tg.z, tb.y + tg.oy + (y + .5) * tg.tw * tg.z];
   const tc = () => p.evaluate(() => tm.layers[ts.layer].data.filter(v => v >= 0).length);
   await p.mouse.move(...tat(1, 1)); await p.mouse.down(); await p.mouse.move(...tat(6, 1), { steps: 6 }); await p.mouse.up();
   ok(await tc() === 6, 'pincel de tiles pinta uma linha de 6');
   await p.keyboard.press('Control+z'); ok(await tc() === 0, 'desfazer no tilemap');
-  const tsb = await p.locator('#tsCv').boundingBox(); const tsw = tsb.width / 8;
+  const tsb = await p.locator('#tsCv').boundingBox(); const tsw = tsb.width / await p.evaluate(() => tsCols);
   await p.mouse.move(tsb.x + tsw * 1.5, tsb.y + 5); await p.mouse.down(); await p.mouse.move(tsb.x + tsw * 2.5, tsb.y + 5, { steps: 3 }); await p.mouse.up();
   ok(await p.evaluate(() => ts.sel.w === 2 && ts.sel.x === 1), 'arrastar no tileset seleciona vários tiles');
   await p.mouse.click(...tat(10, 10)); ok(await p.evaluate(() => tm.layers[0].data[10 * tm.mw + 10] === 1 && tm.layers[0].data[10 * tm.mw + 11] === 2), 'carimbo de 2 tiles');
   const tcAntes = await tc(); await p.keyboard.press('g'); await p.mouse.click(...tat(20, 20)); ok(await tc() > 900, 'balde preenche o mapa');
   await p.keyboard.press('Control+z'); await sleep(100); ok(await tc() === tcAntes && tcAntes === 2, `desfazer tira só o balde e mantém o carimbo (${tcAntes} → ${await tc()})`);
   // sequência relatada: balde → tile no tileset → clique no mapa, com o mapa já redesenhado antes (nada mais força o redesenho)
-  await p.click('#tRail [data-tt=fill]'); { const sb = await p.locator('#tsCv').boundingBox(); await p.mouse.click(sb.x + sb.width * (2.5 / 8), sb.y + sb.height / 2); } await sleep(150);
+  await p.click('#tRail [data-tt=fill]'); { const sb = await p.locator('#tsCv').boundingBox(); const [cs_, rs_] = await p.evaluate(() => [tsCols, tsRows]); await p.mouse.click(sb.x + sb.width * (2.5 / cs_), sb.y + sb.height / rs_ / 2); } await sleep(150);
   ok(await p.evaluate(() => !mapDirty && ts.tool === 'fill'), 'mapa redesenhado e balde ainda selecionado antes do clique');
   await p.mouse.click(...tat(30, 30)); await sleep(150);
   ok(await p.evaluate(() => mapOff.getContext('2d').getImageData(30 * tm.tw + 8, 30 * tm.th + 8, 1, 1).data[3] > 0 && tm.layers[0].data[30 * tm.mw + 30] === 2), 'balde aparece na tela no mesmo clique (não só nos dados)');
   await p.keyboard.press('Control+z');
   await p.click('#tSide [data-tp=tAddAuto]'); ok(await p.evaluate(() => tm.layers[ts.layer].auto), 'camada de autotile');
   await p.mouse.move(tsb.x + tsw * 0.5, tsb.y + 5); await p.mouse.down(); await p.mouse.up();
-  await p.click('#tSide [data-tp=autoFill]'); await p.click('#tSide [data-slot="0"]'); const tsb2 = await p.locator('#tsCv').boundingBox(); await p.mouse.click(tsb2.x + tsb2.width / 8 * 4.5, tsb2.y + 5);
+  await p.click('#tSide [data-tp=autoFill]'); await p.click('#tSide [data-slot="0"]'); const tsb2 = await p.locator('#tsCv').boundingBox(); await p.mouse.click(tsb2.x + tsb2.width / await p.evaluate(() => tsCols) * 4.5, tsb2.y + 5);
   ok(await p.evaluate(() => tm.layers[ts.layer].rules[0] === 4 && tm.layers[ts.layer].rules[15] === 0), 'regra de autotile atribuída tocando no tileset');
   await p.keyboard.press('b'); await p.mouse.click(...tat(3, 25));
   ok(await p.evaluate(() => tileAt(tm.layers[ts.layer], 25 * tm.mw + 3)) === 4, 'célula sozinha usa a regra "sem vizinhos"');
@@ -183,9 +183,9 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   await p.click('#tSide [data-ms="32"]');
   const dl = p.waitForEvent('download'); await p.click('[data-tf=export]'); await p.click('#mBox .btn.pri'); const d = await dl;
   const zp = await d.path(); const zb = fs.readFileSync(zp); ok(d.suggestedFilename().endsWith('_tiled.zip') && zb.includes(Buffer.from('"orthogonal"')) && zb.includes(Buffer.from('tileset.png')), 'exporta .zip do Tiled com .tmj e tileset');
-  const t0i = zb.indexOf('{\n "compressionlevel"'), t1i = zb.indexOf(Buffer.from([0x50, 0x4b, 3, 4]), t0i); const tmj = JSON.parse(zb.slice(t0i, t1i).toString('utf8')); ok(tmj.layers.length === 2 && tmj.tilesets[0].columns === 8 && tmj.layers[0].data.length === 1024, '.tmj válido com as 2 camadas');
+  const t0i = zb.indexOf('{\n "compressionlevel"'), t1i = zb.indexOf(Buffer.from([0x50, 0x4b, 3, 4]), t0i); const tmj = JSON.parse(zb.slice(t0i, t1i).toString('utf8')); ok(tmj.layers.length === 2 && tmj.tilesets[0].columns === 11 && tmj.tilesets[0].tilecount === 77 && tmj.tilesets[0].tilewidth === 16 && tmj.layers[0].data.length === 1024, '.tmj válido com as 2 camadas');
   await p.screenshot({ path: path.join(SHOTS, 'v3_tile.png') });
-  await p.reload(); await sleep(500); const rs = await p.evaluate(() => [tm.layers.length, tm.layers.map(l => l.auto).join(), tsCols, tm.mw]); ok(rs[0] === 2 && rs[1] === 'false,true' && rs[2] === 8, 'mapa e tileset restaurados após recarregar ' + rs);
+  await p.reload(); await sleep(500); const rs = await p.evaluate(() => [tm.layers.length, tm.layers.map(l => l.auto).join(), tsCols, tm.mw]); ok(rs[0] === 2 && rs[1] === 'false,true' && rs[2] === 11, 'mapa e tileset restaurados após recarregar ' + rs);
   // ---- paletas do Lospec (1.5.0)
   ok(await p.evaluate(() => [['RETURN 20', 20], ['Minty chip', 30], ['CC-29', 29], ['Resurrect 64', 64], ['SLSO8', 8], ['Lost Century', 16], ['Twilight 5', 5], ['CafeArisuki', 10]].every(([n, k]) => PALETTES[n] && palList(n).length === k && palList(n).every(c => /^#[0-9a-f]{6}$/.test(c)))), 'paletas do Lospec embutidas com o número certo de cores');
   ok(await p.evaluate(() => { const pv = palName; palName = 'Resurrect 64'; renderColor(); renderFaixa(); const n = [document.querySelectorAll('#cb-cor .sw').length, document.querySelectorAll('#pRow button.c').length]; palName = pv; renderColor(); renderFaixa(); return n.join(); }) === '64,64', 'Resurrect 64 aparece inteira no painel e na fileira de paleta');
@@ -285,6 +285,12 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     ok(await tc4() === 4, 'Tilemap: três dedos refazem');
     await p.click('.tab[data-v=editor]'); await sleep(150);
   }
+  // ---- ajustes de interface (1.8.0)
+  ok(await p.evaluate(() => [...document.querySelectorAll('#side .card')].map(c => c.dataset.card).join() === 'cor,canvas,pincel,camadas,animacao'), 'Canvas é o segundo módulo do painel');
+  ok(await p.evaluate(() => { const c = document.querySelector('#side [data-card=camadas]'); c.classList.add('closed'); const acts = [...c.querySelectorAll('.acts svg')]; const r = acts.length > 0 && acts.every(s => getComputedStyle(s).transform === 'none') && getComputedStyle(c.querySelector('.card-h > svg.cv')).transform !== 'none'; c.classList.remove('closed'); return r; }), 'ao fechar um módulo só a seta gira; os ícones dos botões não "deitam"');
+  ok(await p.evaluate(() => { const c = document.querySelector('#side [data-card=canvas]'); const was = c.classList.contains('closed'); c.classList.remove('closed'); const bs = [...c.querySelectorAll('[data-rm]')]; const r = bs.length === 2 && bs.every(b => b.getBoundingClientRect().height <= 36); if (was) c.classList.add('closed'); return r; }), '"Manter desenho" e "Redimensionar" ficam numa linha cada');
+  ok(await p.evaluate(() => { const n = $('#docName'), keep = doc.name; doc.name = 'Um nome de projeto bem comprido para apertar a barra de comandos'; renderSubtitle(); const b = $('#bar'), f = $('#focoBtn').getBoundingClientRect(), r = b.getBoundingClientRect(), ok_ = b.scrollWidth <= b.clientWidth && f.right <= r.right + .5 && n.getBoundingClientRect().width < 210; doc.name = keep; renderSubtitle(); return ok_; }), 'nome comprido encolhe com "…" e o botão de tela cheia continua inteiro na barra');
+  ok(await p.evaluate(() => { const s = getComputedStyle(document.querySelector('.brand svg')); return s.backgroundColor !== 'rgba(0, 0, 0, 0)'; }), 'a bigorna fica sobre uma placa (visível no tema claro)');
   // ---- correções da 1.2.1
   await p.click('.tab[data-v=snap]'); await sleep(150);
   const nl0 = await p.evaluate(() => doc.layers.length);
@@ -319,9 +325,29 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   ok(await filled() > 900, 'toque simples com o balde preenche ao soltar');
   ok(await p.evaluate(() => { tDeserialize({ app: 'snapforge-tilemap', mw: 4, mh: 4, tw: 16, th: 16, tileset: { url: 'https://example.com/x.png' }, layers: [{ data: [] }] }); return tm.tileset === null; }), 'tileset com URL de rede é recusado (só data:image)');
   await p.evaluate((j) => { tDeserialize(JSON.parse(j)); loadTsImage(() => { renderTSide(); tFit(); }); }, tSaved); await sleep(200);
-  ok(await p.evaluate(() => { const t0 = tm.tileset; setTileset(demoTileset(), 'outro', 16); return tm.tileset !== t0 && tHist[tHist.length - 1].tileset === t0; }), 'trocar o tileset entra no desfazer');
+  ok(await p.evaluate(async () => { const t0 = tm.tileset; await loadLibTileset('Water.png', 'Água'); await new Promise(r => setTimeout(r, 100)); return tm.tileset !== t0 && tm.tileset.name === 'Sprout Lands · Água' && tsCols === 4 && tHist[tHist.length - 1].tileset === t0; }), 'trocar o tileset (pela biblioteca) entra no desfazer');
   await sleep(150); await p.keyboard.press('Control+z'); await sleep(200);
-  ok(await p.evaluate(() => tm.tileset.name) === 'exemplo', 'desfazer volta ao tileset anterior');
+  ok(await p.evaluate(() => tm.tileset.name) === 'Sprout Lands · Grama', 'desfazer volta ao tileset anterior');
+  // biblioteca de tilesets (1.8.0)
+  await p.click('#tSide [data-tp=tsLib]'); await sleep(200);
+  ok(await p.evaluate(() => [...document.querySelectorAll('.ts-lib .pp-group')].map(g => g.textContent).join('|')) === 'Terreno|Terra arada|Construções|Natureza e objetos'
+    && await p.locator('.ts-lib [data-tsf]').count() === 17 && await p.evaluate(() => [...document.querySelectorAll('.ts-lib img')].every(i => i.naturalWidth > 0))
+    && (await p.textContent('.ts-lib .pp-credit')).includes('Cup Nooble'), 'biblioteca separada em 4 listas, 17 tilesets com imagem e crédito do autor');
+  await p.click('.ts-lib [data-tsf="Fences.png"]'); await sleep(400);
+  ok(await p.evaluate(() => tm.tileset.name === 'Sprout Lands · Cercas' && tm.tw === 16 && tsCols === 4 && tsRows === 4 && !document.querySelector('.ts-lib')), 'escolher na lista troca o tileset (tiles de 16 px) e fecha o menu');
+  await p.keyboard.press('Control+z'); await sleep(200);
+  ok(await p.evaluate(() => typeof demoTileset === 'undefined' && Object.keys(TILESET_FILES).length === 17), 'o tileset de exemplo antigo saiu; os 17 do pacote estão embutidos');
+  // xadrez do fundo preso ao mapa: a casa tem o tamanho de meio tile na tela (acompanha o zoom)
+  ok(await p.evaluate(async () => {
+    tm.layers.forEach(L => { L.data.fill(-1); if (L.cells) L.cells.fill(0); }); mapDirty = true; // mapa vazio: só o xadrez aparece
+    const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    // cor do xadrez em pontos fixos do MAPA (em tiles), lida do canvas
+    const pts = [[3.3, 2.6], [3.8, 2.6], [5.1, 7.7], [6.6, 7.2]];
+    const sample = () => { const d = devicePixelRatio || 1, x = tcx; return pts.map(([u, v]) => [...x.getImageData(Math.round((ts.ox + u * tm.tw * ts.zoom) * d), Math.round((ts.oy + v * tm.th * ts.zoom) * d), 1, 1).data].slice(0, 3).join()).join('|'); };
+    ts.zoom = 2; ts.ox = 40; ts.oy = 30; tRender(); await frame(); const a = sample();
+    ts.zoom = 3.5; ts.ox = 13; ts.oy = -7; tRender(); await frame(); const b = sample();
+    return a === b && new Set(a.split('|')).size > 1; }), 'xadrez do fundo do mapa fica preso ao mapa no zoom e no movimento');
+  await p.evaluate(() => tFit());
   await p.click('[data-tf=new]'); await sleep(100); await p.click('#tmS [data-n="16"]'); ok(await p.evaluate(() => $('#tmS .on').dataset.n) === '16', 'botões de tamanho do "Novo mapa" respondem');
   await p.click('#mBox .btn.pri'); await sleep(200); ok(await p.evaluate(() => tm.mw) === 16, 'novo mapa sai com o tamanho escolhido');
   await p.keyboard.press('Control+z'); await sleep(100); ok(await p.evaluate(() => tm.mw) === 32, 'desfazer volta ao mapa anterior');
