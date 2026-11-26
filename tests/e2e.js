@@ -348,6 +348,33 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     ts.zoom = 3.5; ts.ox = 13; ts.oy = -7; tRender(); await frame(); const b = sample();
     return a === b && new Set(a.split('|')).size > 1; }), 'xadrez do fundo do mapa fica preso ao mapa no zoom e no movimento');
   await p.evaluate(() => tFit());
+  // ---- vários tilesets no mesmo mapa (1.9.0): trocar o tileset não muda o que já foi pintado
+  {
+    const cor = (x, y) => p.evaluate(([x, y]) => { rebuildMap(); return [...mapOff.getContext('2d').getImageData(x * tm.tw + 8, y * tm.th + 8, 1, 1).data].join(); }, [x, y]);
+    await p.evaluate(() => { tm.layers.forEach(L => { L.data.fill(-1); if (L.cells) L.cells.fill(0); }); ts.layer = 0; tm.layers[0].visible = true; ts.random = false; setTBrush(1); ts.sel = { x: 1, y: 1, w: 1, h: 1 }; setTTool('stamp'); tBegin(2, 2, 1); tEnd(); });
+    const grama = await cor(2, 2);
+    await p.click('#tSide [data-tp=tsLib]'); await p.click('.ts-lib [data-tsf="Water.png"]'); await sleep(400);
+    await p.evaluate(() => { ts.sel = { x: 0, y: 0, w: 1, h: 1 }; tBegin(5, 5, 1); tEnd(); });
+    ok(await cor(2, 2) === grama && await cor(5, 5) !== grama && await p.evaluate(() => tm.tilesets.length === 2 && tm.ts === 1 && tm.layers[0].data[5 * tm.mw + 5] === 65536), 'trocar o tileset não muda o que já foi pintado (cada célula lembra o tileset)');
+    ok(await p.locator('#tSide #tSets button').count() === 2, 'lista "Tilesets deste mapa" aparece com os dois');
+    await p.click('#tSide [data-tp=tsLib]'); await p.click('.ts-lib [data-tsf="Fences.png"]'); await sleep(400);
+    await p.click('#tSide [data-tp=tsLib]'); await p.click('.ts-lib [data-tsf="Hills.png"]'); await sleep(400);
+    ok(await p.evaluate(() => tm.tilesets.map(s => s.name.replace('Sprout Lands · ', '')).join()) === 'Grama,Água,Morros', 'tileset escolhido e não usado sai da lista ao trocar de novo (Cercas)');
+    await p.click('#tSide [data-tset="0"]'); await sleep(300);
+    ok(await p.evaluate(() => tm.tileset.name === 'Sprout Lands · Grama' && tm.tilesets.length === 2) && await cor(5, 5) !== grama, 'tocar num tileset da lista volta a pintar com ele (Morros, sem uso, sai)');
+    await p.evaluate(() => { setTTool('pick'); tBegin(5, 5, 1); }); await sleep(300);
+    ok(await p.evaluate(() => tm.tileset.name === 'Sprout Lands · Água' && ts.tool === 'stamp' && ts.sel.x === 0 && ts.sel.y === 0), 'conta-gotas no mapa troca para o tileset do tile pego');
+    // exportar para o Tiled com dois tilesets: duas imagens e firstgid em sequência
+    const dl2 = p.waitForEvent('download'); await p.click('[data-tf=export]'); await p.click('#mBox .btn.pri'); const d2 = await dl2; const zb2 = fs.readFileSync(await d2.path());
+    const a0 = zb2.indexOf('{\n "compressionlevel"'), a1 = zb2.indexOf(Buffer.from([0x50, 0x4b, 3, 4]), a0), tmj2 = JSON.parse(zb2.slice(a0, a1).toString('utf8'));
+    ok(tmj2.tilesets.length === 2 && tmj2.tilesets[0].firstgid === 1 && tmj2.tilesets[1].firstgid === 78 && tmj2.layers[0].data[2 * 32 + 2] === 13 && tmj2.layers[0].data[5 * 32 + 5] === 78
+      && zb2.includes(Buffer.from('tileset-1.png')) && zb2.includes(Buffer.from('tileset-2.png')), '.tmj com dois tilesets: firstgid 1 e 78, uma imagem para cada');
+    // mapa salvo no formato antigo (schema 1, um tileset só) abre igual
+    ok(await p.evaluate(() => { tDeserialize({ app: 'snapforge-tilemap', schema: 1, mw: 4, mh: 1, tw: 16, th: 16, tileset: { name: 'antigo', url: TILESET_FILES['Grass.png'], w: 176, h: 112 }, layers: [{ name: 'Chão', data: [1, 2, -1, 12] }] });
+      return tm.tilesets.length === 1 && tm.ts === 0 && tm.tileset.name === 'antigo' && Array.from(tm.layers[0].data).join() === '1,2,-1,12' && tSerialize().schema === 2; }), 'mapa do schema 1 abre igual e passa a salvar no schema 2');
+    // recomeça com um mapa limpo só com a Grama, como os testes seguintes esperam
+    await p.evaluate(() => new Promise(r => { newMap(32, 32, 16, 16, 'Mapa'); tm.tilesets = [{ name: libTilesetName('Grama'), url: TILESET_FILES['Grass.png'], w: 0, h: 0 }]; tm.ts = 0; loadTsImage(() => { renderTSide(); tFit(); r(); }); }));
+  }
   await p.click('[data-tf=new]'); await sleep(100); await p.click('#tmS [data-n="16"]'); ok(await p.evaluate(() => $('#tmS .on').dataset.n) === '16', 'botões de tamanho do "Novo mapa" respondem');
   await p.click('#mBox .btn.pri'); await sleep(200); ok(await p.evaluate(() => tm.mw) === 16, 'novo mapa sai com o tamanho escolhido');
   await p.keyboard.press('Control+z'); await sleep(100); ok(await p.evaluate(() => tm.mw) === 32, 'desfazer volta ao mapa anterior');

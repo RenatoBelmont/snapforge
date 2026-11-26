@@ -12,8 +12,16 @@ let tClip = null; // área copiada do mapa: { w, h, auto, vals, tiles }
 const tHist = [], tFuture = [];
 const tcv = $('#tcv'), tcx = tcv.getContext('2d'), tArea = $('#tArea'), mapOff = document.createElement('canvas');
 let mapDirty = true;
+/* Vários tilesets por mapa (schema 2, 1.9.0): cada célula guarda tileset × 65536 + tile. O tileset 0 usa os números de
+   sempre, então mapas do schema 1 (um tileset só) abrem sem conversão. tm.tilesets = todos; tm.ts = o ativo (com o qual se pinta);
+   tm.tileset aponta para o ativo. Trocar o tileset muda só o que vai ser pintado — o que já está no mapa continua igual. */
+const TS_SHIFT = 65536;
+const tsOf = (v) => Math.floor(v / TS_SHIFT), tileOf_ = (v) => v % TS_SHIFT;
+const tEnc = (local) => tm.ts * TS_SHIFT + local; // tile do tileset ativo → valor da célula
+let tsImgs = [], tsColsAll = []; // imagem e colunas de cada tileset do mapa (tsImg/tsCols/tsRows = do ativo, para o painel)
 function newMap(mw, mh, tw, th, name) {
-  const keepTs = tm && tm.tileset; tm = { name: name || 'Mapa', tw: tw || (tm ? tm.tw : 16), th: th || (tm ? tm.th : 16), mw, mh, tileset: keepTs || null, layers: [] };
+  const keep = tm ? { tilesets: tm.tilesets.slice(), ts: tm.ts } : { tilesets: [], ts: 0 };
+  tm = { name: name || 'Mapa', tw: tw || (tm ? tm.tw : 16), th: th || (tm ? tm.th : 16), mw, mh, tilesets: keep.tilesets, ts: keep.ts, tileset: keep.tilesets[keep.ts] || null, layers: [] };
   addTLayer(false, 'Chão', true); tHist.length = 0; tFuture.length = 0; ts.layer = 0; mapDirty = true;
 }
 function addTLayer(auto, name, silent) {
@@ -23,23 +31,51 @@ function addTLayer(auto, name, silent) {
   tm.layers.splice(ts.layer + (tm.layers.length ? 1 : 0), 0, L); ts.layer = tm.layers.indexOf(L); mapDirty = true;
   if (!silent) { renderTSide(); tRender(); tSave(); }
 }
-const tSnap = () => ({ name: tm.name, tileset: tm.tileset, mw: tm.mw, mh: tm.mh, tw: tm.tw, th: tm.th, layer: ts.layer, msel: ts.msel && { ...ts.msel }, layers: tm.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })) });
-const tRestore = (s) => { const reload = s.tileset !== tm.tileset || s.tw !== tm.tw || s.th !== tm.th; Object.assign(tm, { name: s.name, tileset: s.tileset, mw: s.mw, mh: s.mh, tw: s.tw, th: s.th }); if (reload) loadTsImage(() => { renderTSide(); tRender(); }); tm.layers = s.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })); ts.layer = clamp(s.layer, 0, tm.layers.length - 1); ts.msel = s.msel ? { ...s.msel } : null; mapDirty = true; if (typeof renderTSelBar === 'function') renderTSelBar(); };
+const tSnap = () => ({ name: tm.name, tileset: tm.tileset, tilesets: tm.tilesets.slice(), ts: tm.ts, mw: tm.mw, mh: tm.mh, tw: tm.tw, th: tm.th, layer: ts.layer, msel: ts.msel && { ...ts.msel }, layers: tm.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })) });
+const tRestore = (s) => { const reload = s.tilesets.length !== tm.tilesets.length || s.tilesets.some((t, i) => t !== tm.tilesets[i]) || s.ts !== tm.ts || s.tw !== tm.tw || s.th !== tm.th;
+  Object.assign(tm, { name: s.name, tilesets: s.tilesets.slice(), ts: s.ts, tileset: s.tilesets[s.ts] || null, mw: s.mw, mh: s.mh, tw: s.tw, th: s.th }); if (reload) loadTsImage(() => { renderTSide(); tRender(); }); tm.layers = s.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })); ts.layer = clamp(s.layer, 0, tm.layers.length - 1); ts.msel = s.msel ? { ...s.msel } : null; mapDirty = true; if (typeof renderTSelBar === 'function') renderTSelBar(); };
 /** Guarda o estado atual. Devolve a pilha de refazer descartada, para o traço que não mudar nada (ou for cancelado) devolvê-la. */
 function tPush() { tHist.push(tSnap()); if (tHist.length > 60) tHist.shift(); return tFuture.splice(0); }
 function tUndo() { if (!tHist.length) return toast('Nada para desfazer'); tFuture.push(tSnap()); tRestore(tHist.pop()); renderTSide(); tRender(); tSave(); }
 function tRedo() { if (!tFuture.length) return toast('Nada para refazer'); tHist.push(tSnap()); tRestore(tFuture.pop()); renderTSide(); tRender(); tSave(); }
 
 /* ---------- tileset ---------- */
+/** Escolhe o tileset com que se pinta. Se ele já está no mapa, só vira o ativo; senão entra na lista. Nada do que já está pintado muda. */
 function setTileset(img, name, tile) {
-  tPush(); if (tile) tm.tw = tm.th = tile; const c = imgToCanvas(img); tm.tileset = { name: name || 'tileset', url: c.toDataURL('image/png'), w: img.width, h: img.height };
-  loadTsImage(() => { ts.sel = { x: 0, y: 0, w: 1, h: 1 }; renderTSide(); mapDirty = true; tRender(); tSave(); toast(`Tileset ${img.width}×${img.height} · ${tsCols * tsRows} tiles de ${tm.tw}×${tm.th} (⌘Z desfaz)`); });
+  tPush(); if (tile) tm.tw = tm.th = tile; const c = imgToCanvas(img), url = c.toDataURL('image/png'), nm = name || 'tileset';
+  let i = tm.tilesets.findIndex(s => s.url === url || (s.name === nm && s.w === img.width && s.h === img.height));
+  if (i < 0) { tm.tilesets.push({ name: nm, url, w: img.width, h: img.height }); i = tm.tilesets.length - 1; }
+  tActivate(i);
+  loadTsImage(() => { ts.sel = { x: 0, y: 0, w: 1, h: 1 }; renderTSide(); mapDirty = true; tRender(); tSave(); toast(`Pintando com ${tm.tileset.name}: ${tsCols * tsRows} tiles de ${tm.tw}×${tm.th}. O que já está no mapa não muda (⌘Z desfaz)`, 3200); });
 }
-function loadTsImage(cb) { if (!tm.tileset) { tsImg = null; tsCols = tsRows = 0; cb && cb(); return; } const im = new Image(); im.onload = () => { tsImg = im; tsCols = Math.max(1, Math.floor(im.width / tm.tw)); tsRows = Math.max(1, Math.floor(im.height / tm.th)); mapDirty = true; cb && cb(); };
-  im.onerror = () => { tm.tileset = null; tsImg = null; tsCols = tsRows = 0; mapDirty = true; toast('Não consegui abrir a imagem do tileset'); cb && cb(); }; im.src = tm.tileset.url; }
+/** Torna `i` o tileset ativo e tira da lista os que não estão em uso em nenhuma camada (renumerando as células). */
+function tActivate(i) {
+  tm.ts = i; const n = tm.tilesets.length, used = new Array(n).fill(false); used[i] = true;
+  const mark = (v) => { if (v >= 0 && tsOf(v) < n) used[tsOf(v)] = true; };
+  for (const L of tm.layers) { if (!L.auto) for (const v of L.data) mark(v); if (L.rules) L.rules.forEach(mark); }
+  if (used.every(Boolean)) { tm.tileset = tm.tilesets[i]; return; }
+  const map = []; let k = 0; for (let j = 0; j < n; j++) map[j] = used[j] ? k++ : -1;
+  const re = (v) => v < 0 ? v : (map[tsOf(v)] < 0 ? -1 : map[tsOf(v)] * TS_SHIFT + tileOf_(v));
+  for (const L of tm.layers) { if (!L.auto) for (let j = 0; j < L.data.length; j++) L.data[j] = re(L.data[j]); if (L.rules) L.rules = L.rules.map(re); }
+  tm.tilesets = tm.tilesets.filter((_, j) => used[j]); tm.ts = map[i]; tm.tileset = tm.tilesets[tm.ts];
+  if (tClip) tClip = null; // valores copiados apontavam para a numeração antiga
+}
+/** Carrega as imagens de todos os tilesets do mapa; tsImg/tsCols/tsRows ficam com as do ativo. */
+function loadTsImage(cb) {
+  tm.tileset = tm.tilesets[tm.ts] || null;
+  if (!tm.tilesets.length) { tsImgs = []; tsColsAll = []; tsImg = null; tsCols = tsRows = 0; mapDirty = true; cb && cb(); return; }
+  const sets = tm.tilesets.slice(); let falhou = 0;
+  Promise.all(sets.map((s) => new Promise((res) => { const im = new Image(); im.onload = () => { s.w = im.width; s.h = im.height; res(im); }; im.onerror = () => { falhou++; res(null); }; im.src = s.url; }))).then((ims) => {
+    if (sets.length !== tm.tilesets.length || sets.some((s, i) => s !== tm.tilesets[i])) return; // a lista mudou enquanto carregava: o carregamento mais novo vale
+    tsImgs = ims; tsColsAll = ims.map(im => im ? Math.max(1, Math.floor(im.width / tm.tw)) : 1);
+    tsImg = ims[tm.ts] || null; tsCols = tsImg ? tsColsAll[tm.ts] : 0; tsRows = tsImg ? Math.max(1, Math.floor(tsImg.height / tm.th)) : 0;
+    if (falhou) toast('Não consegui abrir a imagem de um dos tilesets');
+    mapDirty = true; cb && cb(); });
+}
 const tileAt = (L, i) => { if (!L.auto) return L.data[i]; if (!L.cells[i]) return -1; const x = i % tm.mw, y = (i / tm.mw) | 0, on = (xx, yy) => xx >= 0 && yy >= 0 && xx < tm.mw && yy < tm.mh && L.cells[yy * tm.mw + xx];
   const m = (on(x, y - 1) ? 1 : 0) | (on(x + 1, y) ? 2 : 0) | (on(x, y + 1) ? 4 : 0) | (on(x - 1, y) ? 8 : 0); if (L.rules[m] >= 0) return L.rules[m]; if (L.rules[15] >= 0) return L.rules[15]; return L.rules.find(r => r >= 0) ?? -1; };
-function drawTile(ctx, t, dx, dy, s = 1) { if (t < 0 || !tsImg) return; ctx.drawImage(tsImg, (t % tsCols) * tm.tw, Math.floor(t / tsCols) * tm.th, tm.tw, tm.th, dx, dy, tm.tw * s, tm.th * s); }
+/** Desenha a célula `t` (tileset × 65536 + tile) com a imagem do tileset de onde ela veio. */
+function drawTile(ctx, t, dx, dy, s = 1) { if (t < 0) return; const k = tsOf(t), im = tsImgs[k]; if (!im) return; const cols = tsColsAll[k], l = tileOf_(t); ctx.drawImage(im, (l % cols) * tm.tw, Math.floor(l / cols) * tm.th, tm.tw, tm.th, dx, dy, tm.tw * s, tm.th * s); }
 function rebuildMap() { mapOff.width = tm.mw * tm.tw; mapOff.height = tm.mh * tm.th; const x = mapOff.getContext('2d'); x.imageSmoothingEnabled = false; x.clearRect(0, 0, mapOff.width, mapOff.height);
   for (const L of tm.layers) { if (!L.visible) continue; for (let i = 0; i < L.data.length; i++) { const t = tileAt(L, i); if (t >= 0) drawTile(x, t, (i % tm.mw) * tm.tw, ((i / tm.mw) | 0) * tm.th); } } mapDirty = false; }
 
@@ -65,7 +101,7 @@ function tDraw() {
   if (tRect) { tcx.strokeStyle = acc; tcx.lineWidth = 2; const a = Math.min(tRect.x0, tRect.x1), b = Math.min(tRect.y0, tRect.y1); tcx.strokeRect(ts.ox + a * tw, ts.oy + b * th, (Math.abs(tRect.x1 - tRect.x0) + 1) * tw, (Math.abs(tRect.y1 - tRect.y0) + 1) * th); }
   else if (tHover && ['stamp', 'erase', 'rect', 'fill'].includes(ts.tool)) { const L = tm.layers[ts.layer], block = ts.tool === 'stamp' && !L.auto && !ts.random && !tBrushApplies(),
       n = ['stamp', 'erase'].includes(ts.tool) && tBrushApplies() ? ts.brush : 1, r0 = -Math.floor((n - 1) / 2), w = block ? ts.sel.w : n, h = block ? ts.sel.h : n, hx = tHover[0] + (block ? 0 : r0), hy = tHover[1] + (block ? 0 : r0);
-    if (ts.tool === 'stamp' && tsImg && !L.auto && !ts.random) { tcx.globalAlpha = .55; for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) drawTile(tcx, block ? (ts.sel.y + yy) * tsCols + ts.sel.x + xx : ts.sel.y * tsCols + ts.sel.x, ts.ox + (hx + xx) * tw, ts.oy + (hy + yy) * th, z); tcx.globalAlpha = 1; }
+    if (ts.tool === 'stamp' && tsImg && !L.auto && !ts.random) { tcx.globalAlpha = .55; for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) drawTile(tcx, tEnc(block ? (ts.sel.y + yy) * tsCols + ts.sel.x + xx : ts.sel.y * tsCols + ts.sel.x), ts.ox + (hx + xx) * tw, ts.oy + (hy + yy) * th, z); tcx.globalAlpha = 1; }
     tcx.strokeStyle = acc; tcx.lineWidth = 2; tcx.strokeRect(ts.ox + hx * tw, ts.oy + hy * th, w * tw, h * th); }
   if (ts.msel) { const m = ts.msel, X = ts.ox + m.x * tw + .5, Y = ts.oy + m.y * th + .5; tcx.lineWidth = 1.5; tcx.strokeStyle = '#fff'; tcx.strokeRect(X, Y, m.w * tw, m.h * th); tcx.strokeStyle = acc; tcx.setLineDash([6, 4]); tcx.strokeRect(X, Y, m.w * tw, m.h * th); tcx.setLineDash([]); }
   tcx.strokeStyle = 'rgba(128,128,140,.5)'; tcx.lineWidth = 1; tcx.strokeRect(ts.ox - .5, ts.oy - .5, W + 1, H + 1);
@@ -76,7 +112,7 @@ function tDraw() {
 /* ---------- pintura ---------- */
 const tCell = (cx_, cy_) => { const r = tcv.getBoundingClientRect(); return [Math.floor((cx_ - r.left - ts.ox) / (tm.tw * ts.zoom)), Math.floor((cy_ - r.top - ts.oy) / (tm.th * ts.zoom))]; };
 const tIn = (x, y) => x >= 0 && y >= 0 && x < tm.mw && y < tm.mh;
-const selTiles = () => { const a = []; for (let y = 0; y < ts.sel.h; y++) for (let x = 0; x < ts.sel.w; x++) a.push((ts.sel.y + y) * tsCols + ts.sel.x + x); return a; };
+const selTiles = () => { const a = []; for (let y = 0; y < ts.sel.h; y++) for (let x = 0; x < ts.sel.w; x++) a.push(tEnc((ts.sel.y + y) * tsCols + ts.sel.x + x)); return a; };
 function tSet(L, x, y, t) { if (!tIn(x, y)) return; const i = y * tm.mw + x; if (L.auto) L.cells[i] = t >= 0 ? 1 : 0; else L.data[i] = t; }
 function tStampAt(x, y, erase, anchor) {
   const L = tm.layers[ts.layer];
@@ -85,8 +121,8 @@ function tStampAt(x, y, erase, anchor) {
   if (!tsImg) return; const list = selTiles();
   if (ts.random) { tSet(L, x, y, list[Math.floor(Math.random() * list.length)]); return; }
   const ax = anchor ? anchor[0] : x, ay = anchor ? anchor[1] : y; // pinta o bloco selecionado alinhado ao ponto inicial
-  if (anchor) { const dx = ((x - ax) % ts.sel.w + ts.sel.w) % ts.sel.w, dy = ((y - ay) % ts.sel.h + ts.sel.h) % ts.sel.h; tSet(L, x, y, (ts.sel.y + dy) * tsCols + ts.sel.x + dx); }
-  else for (let yy = 0; yy < ts.sel.h; yy++) for (let xx = 0; xx < ts.sel.w; xx++) tSet(L, x + xx, y + yy, (ts.sel.y + yy) * tsCols + ts.sel.x + xx);
+  if (anchor) { const dx = ((x - ax) % ts.sel.w + ts.sel.w) % ts.sel.w, dy = ((y - ay) % ts.sel.h + ts.sel.h) % ts.sel.h; tSet(L, x, y, tEnc((ts.sel.y + dy) * tsCols + ts.sel.x + dx)); }
+  else for (let yy = 0; yy < ts.sel.h; yy++) for (let xx = 0; xx < ts.sel.w; xx++) tSet(L, x + xx, y + yy, tEnc((ts.sel.y + yy) * tsCols + ts.sel.x + xx));
 }
 /** O tamanho do pincel vale para tile único, aleatório, autotile e borracha; um carimbo de vários tiles usa o próprio tamanho. */
 const tBrushApplies = () => { const L = tm.layers[ts.layer]; return ts.brush > 1 && (ts.tool === 'erase' || L.auto || ts.random || ts.sel.w * ts.sel.h === 1); };
@@ -143,7 +179,7 @@ function tFill(x, y) {
   const list = selTiles(); if (!L.auto && !tsImg) return false; let changed = false;
   while (st_.length) { const yy = st_.pop(), xx = st_.pop(); if (!tIn(xx, yy)) continue; const i = yy * tm.mw + xx; if (seen[i] || get(i) !== target) continue; seen[i] = 1;
     const before = get(i);
-    if (L.auto) L.cells[i] = 1; else L.data[i] = ts.random ? list[Math.floor(Math.random() * list.length)] : (ts.sel.y + ((yy - y) % ts.sel.h + ts.sel.h) % ts.sel.h) * tsCols + ts.sel.x + ((xx - x) % ts.sel.w + ts.sel.w) % ts.sel.w;
+    if (L.auto) L.cells[i] = 1; else L.data[i] = ts.random ? list[Math.floor(Math.random() * list.length)] : tEnc((ts.sel.y + ((yy - y) % ts.sel.h + ts.sel.h) % ts.sel.h) * tsCols + ts.sel.x + ((xx - x) % ts.sel.w + ts.sel.w) % ts.sel.w);
     if (get(i) !== before) changed = true;
     st_.push(xx + 1, yy, xx - 1, yy, xx, yy + 1, xx, yy - 1); }
   return changed;
@@ -158,7 +194,9 @@ function tBegin(x, y, id) {
     tStroke = { id, select: true, x0: x, y0: y, prev: ts.msel, moved: false }; ts.msel = { x: clamp(x, 0, tm.mw - 1), y: clamp(y, 0, tm.mh - 1), w: 1, h: 1 }; tRender(); return; // selecionar não entra no desfazer
   }
   if (!L.visible) { toast('A camada está oculta'); tStroke = { noop: true }; return; }
-  if (ts.tool === 'pick') { const i = y * tm.mw + x; if (tIn(x, y)) { const t = tileAt(L, i); if (t >= 0) { ts.sel = { x: t % tsCols, y: Math.floor(t / tsCols), w: 1, h: 1 }; setTTool('stamp'); renderTileset(); } } tStroke = { noop: true }; return; }
+  if (ts.tool === 'pick') { const i = y * tm.mw + x; if (tIn(x, y)) { const t = tileAt(L, i); if (t >= 0) { // pega também o tileset de onde o tile veio
+        const k = tsOf(t), l = tileOf_(t), cols = tsColsAll[k] || 1, done = () => { ts.sel = { x: l % cols, y: Math.floor(l / cols), w: 1, h: 1 }; setTTool('stamp'); renderTSide(); tRender(); };
+        if (k !== tm.ts && tm.tilesets[k]) { tm.ts = k; loadTsImage(done); tSave(); } else done(); } } tStroke = { noop: true }; return; }
   const fut = tPush(); tStroke = { id, fut, lx: x, ly: y, anchor: [x, y], changed: false };
   if (ts.tool === 'fill') { tStroke.changed = tFill(x, y); tEnd(); return; } // sem isso o tEnd achava que nada mudou: não redesenhava e jogava fora o desfazer
   if (ts.tool === 'rect') { tRect = { x0: x, y0: y, x1: x, y1: y }; tRender(); return; }
@@ -267,6 +305,7 @@ function renderTSide() {
   $('#tSide').innerHTML = tCard('tileset', 'Tileset') + tCard('tcamadas', 'Camadas', tb3('tAdd', 'plus', 'Nova camada') + tb3('tAddAuto', 'auto', 'Nova camada de autotile') + tb3('tDel', 'trash', 'Excluir camada', 'danger')) + tCard('tpincel', 'Pincel') + tCard('mapa', 'Mapa');
   const tb = $('#tb-tileset');
   tb.innerHTML = `<div class="row wrap"><button class="btn sm" data-tp="tsImport">${ico('upload')}Importar PNG</button><button class="btn sm" data-tp="tsEditor">Do editor</button><button class="btn sm" data-tp="tsLib" data-pp-trigger title="Tilesets prontos do Sprout Lands, separados por listas">${ico('tiles')}Prontos${ico('chevron')}</button></div>
+    ${tm.tilesets.length > 1 ? `<div class="lbl"><span>Tilesets deste mapa <span class="muted" style="font-weight:500">(toque para pintar)</span></span><div class="chips" id="tSets">${tm.tilesets.map((s, i) => `<button data-tset="${i}" class="${i === tm.ts ? 'on' : ''}" style="font-family:var(--ui)" title="${esc(s.name)}">${esc(s.name.replace(/^Sprout Lands · /, ''))}</button>`).join('')}</div></div>` : ''}
     <div class="lbl">Tamanho do tile<div class="chips" id="tTileSz">${TILE_SIZES.map(s => `<button data-ts="${s}" class="${tm.tw === s && tm.th === s ? 'on' : ''}">${s}</button>`).join('')}</div></div>
     ${tsImg ? `<div class="tileset-wrap checker" id="tsWrap"><canvas class="px" id="tsCv"></canvas></div><span class="hint">${tsCols * tsRows} tiles · toque num tile ou arraste para selecionar vários (vira um carimbo). Seleção: ${ts.sel.w}×${ts.sel.h}.</span>${L && L.auto ? '<div id="tb-auto" class="stack" style="gap:8px"></div>' : ''}` : '<div class="note">Importe um tileset (PNG com os tiles em grade) ou use o de exemplo para testar.</div>'}`;
   const mb = $('#tb-mapa');
@@ -301,7 +340,7 @@ function renderTileset() {
   x.strokeStyle = cssRgb('--plum'); x.lineWidth = 2; x.strokeRect(ts.sel.x * tm.tw * sc + 1, ts.sel.y * tm.th * sc + 1, ts.sel.w * tm.tw * sc - 2, ts.sel.h * tm.th * sc - 2);
   const tileOf = (e) => { const r = c.getBoundingClientRect(), s = r.width / tsImg.width; return [clamp(Math.floor((e.clientX - r.left) / (tm.tw * s)), 0, tsCols - 1), clamp(Math.floor((e.clientY - r.top) / (tm.th * s)), 0, tsRows - 1)]; };
   c.onpointerdown = (e) => { if (e.pointerType === 'touch' && !e.isPrimary) return; const [tx, ty] = tileOf(e);
-    if (tm.layers[ts.layer].auto && ts.slot >= 0) { tPush(); tm.layers[ts.layer].rules[ts.slot] = ty * tsCols + tx; ts.slot = (ts.slot + 1) % 16; mapDirty = true; renderAuto(); tRender(); tSave(); ts.sel = { x: tx, y: ty, w: 1, h: 1 }; renderTileset(); return; }
+    if (tm.layers[ts.layer].auto && ts.slot >= 0) { tPush(); tm.layers[ts.layer].rules[ts.slot] = tEnc(ty * tsCols + tx); ts.slot = (ts.slot + 1) % 16; mapDirty = true; renderAuto(); tRender(); tSave(); ts.sel = { x: tx, y: ty, w: 1, h: 1 }; renderTileset(); return; }
     tsDrag = [tx, ty]; ts.sel = { x: tx, y: ty, w: 1, h: 1 }; c.setPointerCapture(e.pointerId); redrawSel(); if (ts.tool !== 'stamp' && ts.tool !== 'fill' && ts.tool !== 'rect') setTTool('stamp'); };
   c.onpointermove = (e) => { if (!tsDrag || !e.buttons) return; const [tx, ty] = tileOf(e); ts.sel = { x: Math.min(tsDrag[0], tx), y: Math.min(tsDrag[1], ty), w: Math.abs(tx - tsDrag[0]) + 1, h: Math.abs(ty - tsDrag[1]) + 1 }; redrawSel(); };
   c.onpointerup = c.onpointercancel = () => { if (tsDrag) { tsDrag = null; renderTSideHint(); } };
@@ -310,6 +349,7 @@ function renderTileset() {
 const renderTSideHint = () => { const h = $('#tb-tileset .hint'); if (h) h.textContent = `${tsCols * tsRows} tiles · toque num tile ou arraste para selecionar vários (vira um carimbo). Seleção: ${ts.sel.w}×${ts.sel.h}.`; renderTileset(); };
 $('#tSide').addEventListener('click', async (e) => {
   const tg = e.target.closest('[data-ttoggle]'); if (tg && !e.target.closest('.acts')) { const id = tg.dataset.ttoggle, card = tg.parentElement; card.classList.toggle('closed'); tCardOpen[id] = !card.classList.contains('closed'); LS.set('tcards', tCardOpen); if (id === 'tileset') renderTileset(); return; }
+  const tset = e.target.closest('[data-tset]'); if (tset) { const i = +tset.dataset.tset; if (i !== tm.ts) { tActivate(i); loadTsImage(() => { ts.sel = { x: 0, y: 0, w: 1, h: 1 }; renderTSide(); tRender(); }); tSave(); } return; }
   const br = e.target.closest('[data-tbr]'); if (br) { setTBrush(+br.dataset.tbr); return; }
   const sz = e.target.closest('[data-ts]'); if (sz) { const n = +sz.dataset.ts; if (n === tm.tw && n === tm.th) return; tPush(); tm.tw = tm.th = n; loadTsImage(() => { ts.sel = { x: 0, y: 0, w: 1, h: 1 }; renderTSide(); tFit(); tSave(); }); return; }
   const ms = e.target.closest('[data-ms]'); if (ms) { const n = +ms.dataset.ms; tResizeMap(n, n); return; }
@@ -325,7 +365,7 @@ $('#tSide').addEventListener('click', async (e) => {
   else if (k === 'tDel') { if (tm.layers.length <= 1) return toast('Precisa ter ao menos uma camada'); tPush(); tm.layers.splice(ts.layer, 1); ts.layer = Math.max(0, ts.layer - 1); mapDirty = true; renderTSide(); tRender(); tSave(); }
   else if (k === 'tUp' || k === 'tDown') { const j = ts.layer + (k === 'tUp' ? 1 : -1); if (j < 0 || j >= tm.layers.length) return; tPush(); [tm.layers[ts.layer], tm.layers[j]] = [tm.layers[j], tm.layers[ts.layer]]; ts.layer = j; mapDirty = true; renderTLayers(); tRender(); tSave(); }
   else if (k === 'tRen') { const f = await modal('Renomear camada', `<input class="input-field" id="tln" value="${esc(L.name)}">`, [['Cancelar', null], ['Salvar', '__form', 'primary']]); if (f) { L.name = $('#tln', f).value.trim() || L.name; renderTLayers(); tRender(); tSave(); } }
-  else if (k === 'autoFill') { tPush(); const t = ts.sel.y * tsCols + ts.sel.x; L.rules.fill(t); mapDirty = true; renderAuto(); tRender(); tSave(); }
+  else if (k === 'autoFill') { tPush(); const t = tEnc(ts.sel.y * tsCols + ts.sel.x); L.rules.fill(t); mapDirty = true; renderAuto(); tRender(); tSave(); }
   else if (k === 'autoClear') { tPush(); L.rules.fill(-1); mapDirty = true; renderAuto(); tRender(); tSave(); }
 });
 function tResizeMap(W, H) { if (W === tm.mw && H === tm.mh) return; tPush(); const ox = 0, oy = 0;
@@ -333,14 +373,22 @@ function tResizeMap(W, H) { if (W === tm.mw && H === tm.mh) return; tPush(); con
   tm.mw = W; tm.mh = H; mapDirty = true; renderTSide(); tFit(); tSave(); toast(`Mapa ${W}×${H} tiles (⌘Z desfaz)`); }
 
 /* ---------- arquivos e exportação ---------- */
-const tSerialize = () => ({ app: 'snapforge-tilemap', schema: 1, version: VERSION, name: tm.name, tw: tm.tw, th: tm.th, mw: tm.mw, mh: tm.mh, tileset: tm.tileset,
+// schema 2: `tilesets` (todos) + `ts` (o ativo); célula = tileset × 65536 + tile. O schema 1 (um `tileset`) continua sendo lido.
+const tSerialize = () => ({ app: 'snapforge-tilemap', schema: 2, version: VERSION, name: tm.name, tw: tm.tw, th: tm.th, mw: tm.mw, mh: tm.mh,
+  tilesets: tm.tilesets.map(s => ({ name: s.name, url: s.url, w: s.w, h: s.h })), ts: tm.ts,
   layers: tm.layers.map(L => ({ name: L.name, visible: L.visible, auto: L.auto, data: Array.from(L.data), cells: L.cells ? Array.from(L.cells) : undefined, rules: L.rules })) });
 function tDeserialize(o) {
   if (!o || o.app !== 'snapforge-tilemap' || !Array.isArray(o.layers)) throw new Error('Arquivo não é um mapa do Snapforge');
   const mw = clamp(o.mw | 0, 1, 256), mh = clamp(o.mh | 0, 1, 256), n = mw * mh;
-  tm = { name: String(o.name || 'Mapa'), tw: clamp(o.tw | 0 || 16, 1, 256), th: clamp(o.th | 0 || 16, 1, 256), mw, mh, tileset: o.tileset && typeof o.tileset.url === 'string' && /^data:image\/(png|gif|webp|jpeg);base64,/.test(o.tileset.url) ? { name: String(o.tileset.name || 'tileset'), url: o.tileset.url, w: o.tileset.w | 0, h: o.tileset.h | 0 } : null,
-    layers: o.layers.map((L, i) => ({ name: String(L.name || 'Camada ' + (i + 1)), visible: L.visible !== false, auto: !!L.auto, data: Int32Array.from((L.data || []).slice(0, n).concat(new Array(Math.max(0, n - (L.data || []).length)).fill(-1))),
-      cells: L.auto ? Uint8Array.from((L.cells || []).slice(0, n).concat(new Array(Math.max(0, n - (L.cells || []).length)).fill(0))) : undefined, rules: L.auto ? (Array.isArray(L.rules) && L.rules.length === 16 ? L.rules.map(r => r | 0) : new Array(16).fill(-1)) : undefined })) };
+  // só imagens embutidas (data:image) — um link de rede no arquivo não é aceito
+  const okTs = (s) => s && typeof s.url === 'string' && /^data:image\/(png|gif|webp|jpeg);base64,/.test(s.url) ? { name: String(s.name || 'tileset'), url: s.url, w: s.w | 0, h: s.h | 0 } : null;
+  const raw = Array.isArray(o.tilesets) ? o.tilesets : [o.tileset]; // schema 1 tinha um tileset só: vira o tileset 0, e os números das células já valem
+  const keepIdx = [], tilesets = []; raw.forEach((s, i) => { const v = okTs(s); keepIdx[i] = v ? tilesets.length : -1; if (v) tilesets.push(v); });
+  const fix = (v) => { v = v | 0; if (v < 0) return -1; const k = keepIdx[tsOf(v)]; return k === undefined || k < 0 ? -1 : k * TS_SHIFT + tileOf_(v); };
+  const ts0 = clamp((o.ts | 0), 0, Math.max(0, raw.length - 1)), tsA = keepIdx[ts0] >= 0 ? keepIdx[ts0] : 0;
+  tm = { name: String(o.name || 'Mapa'), tw: clamp(o.tw | 0 || 16, 1, 256), th: clamp(o.th | 0 || 16, 1, 256), mw, mh, tilesets, ts: tsA, tileset: tilesets[tsA] || null,
+    layers: o.layers.map((L, i) => ({ name: String(L.name || 'Camada ' + (i + 1)), visible: L.visible !== false, auto: !!L.auto, data: Int32Array.from((L.data || []).slice(0, n).concat(new Array(Math.max(0, n - (L.data || []).length)).fill(-1)), fix),
+      cells: L.auto ? Uint8Array.from((L.cells || []).slice(0, n).concat(new Array(Math.max(0, n - (L.cells || []).length)).fill(0))) : undefined, rules: L.auto ? (Array.isArray(L.rules) && L.rules.length === 16 ? L.rules.map(fix) : new Array(16).fill(-1)) : undefined })) };
   if (!tm.layers.length) addTLayer(false, 'Chão', true); ts.layer = 0; mapDirty = true;
 }
 let tSaveT = 0; function tSave() { clearTimeout(tSaveT); tSaveT = setTimeout(() => { tSaveT = 0; if (!LS.set('tilemap', tSerialize())) toast('Mapa grande demais para salvar sozinho — use Salvar'); }, 500); }
@@ -370,13 +418,21 @@ async function tFile(v) {
     if (!tsImg) return toast('Importe um tileset primeiro');
     await withBusy('Exportando mapa…', async () => {
       if (fmt === 'png') { saveBlob(await canvasBlob(scaled(mapImage(), sc)), `${tSlug()}_${tm.mw * tm.tw}x${tm.mh * tm.th}${sc > 1 ? '_' + sc + 'x' : ''}.png`); return; }
-      const layers = tm.layers.map(L => ({ name: L.name, visible: L.visible, data: resolvedLayer(L) }));
-      if (fmt === 'json') { saveBlob(new Blob([JSON.stringify({ tileWidth: tm.tw, tileHeight: tm.th, width: tm.mw, height: tm.mh, tilesetColumns: tsCols, note: 'índice do tile = linha * tilesetColumns + coluna; -1 = vazio; data em linhas (y * width + x)', layers: layers.map(L => ({ name: L.name, visible: L.visible, data: Array.from(L.data) })) }, null, 1)], { type: 'application/json' }), `${tSlug()}.json`); return; }
+      // cada tileset ganha uma faixa de índices (como o firstgid do Tiled): índice = início do tileset + tile. Com um tileset só, é o índice de sempre.
+      const sets = tm.tilesets.map((s, i) => { const im = tsImgs[i], cols = tsColsAll[i] || 1, rows = im ? Math.max(1, Math.floor(im.height / tm.th)) : 1; return { s, im, cols, rows, count: cols * rows }; });
+      let acc = 0; for (const x of sets) { x.first = acc; acc += x.count; }
+      const glob = (v) => v < 0 || !sets[tsOf(v)] ? -1 : sets[tsOf(v)].first + tileOf_(v);
+      const one = sets.length === 1, img = (i) => one ? 'tileset.png' : `tileset-${i + 1}.png`;
+      const layers = tm.layers.map(L => ({ name: L.name, visible: L.visible, data: Array.from(resolvedLayer(L), glob) }));
+      if (fmt === 'json') { saveBlob(new Blob([JSON.stringify({ tileWidth: tm.tw, tileHeight: tm.th, width: tm.mw, height: tm.mh, tilesetColumns: sets[tm.ts]?.cols ?? tsCols,
+        tilesets: sets.map((x, i) => ({ name: x.s.name, image: img(i), columns: x.cols, tilecount: x.count, firstIndex: x.first })),
+        note: 'índice = firstIndex do tileset + (linha * columns + coluna); -1 = vazio; data em linhas (y * width + x). Com um tileset só, firstIndex = 0.', layers }, null, 1)], { type: 'application/json' }), `${tSlug()}.json`); return; }
       const tmj = { compressionlevel: -1, width: tm.mw, height: tm.mh, infinite: false, orientation: 'orthogonal', renderorder: 'right-down', tilewidth: tm.tw, tileheight: tm.th, type: 'map', version: '1.10', tiledversion: '1.10.2', nextlayerid: layers.length + 1, nextobjectid: 1,
-        layers: layers.map((L, i) => ({ id: i + 1, name: L.name, type: 'tilelayer', visible: L.visible, opacity: 1, x: 0, y: 0, width: tm.mw, height: tm.mh, data: Array.from(L.data, t => t + 1) })),
-        tilesets: [{ firstgid: 1, name: tm.tileset.name || 'tileset', image: 'tileset.png', imagewidth: tsImg.width, imageheight: tsImg.height, tilewidth: tm.tw, tileheight: tm.th, columns: tsCols, tilecount: tsCols * tsRows, margin: 0, spacing: 0 }] };
-      const tsBytes = new Uint8Array(await (await fetch(tm.tileset.url)).arrayBuffer()), enc = new TextEncoder();
-      saveBlob(zipStore([{ name: `${tSlug()}.tmj`, data: enc.encode(JSON.stringify(tmj, null, 1)) }, { name: 'tileset.png', data: tsBytes }]), `${tSlug()}_tiled.zip`);
+        layers: layers.map((L, i) => ({ id: i + 1, name: L.name, type: 'tilelayer', visible: L.visible, opacity: 1, x: 0, y: 0, width: tm.mw, height: tm.mh, data: L.data.map(t => t + 1) })),
+        tilesets: sets.map((x, i) => ({ firstgid: x.first + 1, name: x.s.name || 'tileset', image: img(i), imagewidth: x.im ? x.im.width : 0, imageheight: x.im ? x.im.height : 0, tilewidth: tm.tw, tileheight: tm.th, columns: x.cols, tilecount: x.count, margin: 0, spacing: 0 })) };
+      const enc = new TextEncoder(), files = [{ name: `${tSlug()}.tmj`, data: enc.encode(JSON.stringify(tmj, null, 1)) }];
+      for (let i = 0; i < sets.length; i++) files.push({ name: img(i), data: new Uint8Array(await (await fetch(sets[i].s.url)).arrayBuffer()) }); // data: URL embutida, não é rede
+      saveBlob(zipStore(files), `${tSlug()}_tiled.zip`);
     });
   }
 }
@@ -384,7 +440,7 @@ $('#v-tile .stage-bar').addEventListener('click', (e) => { const b = e.target.cl
 function initTilemap() {
   try { const o = LS.get('tilemap', null); if (o) tDeserialize(o); else newMap(32, 32, 16, 16); } catch { newMap(32, 32, 16, 16); }
   // mapa novo (ou sem tileset) começa com a Grama do Sprout Lands; mapas salvos mantêm o tileset que já têm
-  if (!tm.tileset) { const [n, f] = TILESET_DEFAULT; tm.tw = tm.th = 16; tm.tileset = { name: libTilesetName(n), url: TILESET_FILES[f], w: 0, h: 0 }; }
+  if (!tm.tilesets.length) { const [n, f] = TILESET_DEFAULT; tm.tw = tm.th = 16; tm.tilesets = [{ name: libTilesetName(n), url: TILESET_FILES[f], w: 0, h: 0 }]; tm.ts = 0; tm.tileset = tm.tilesets[0]; }
   loadTsImage(() => { renderTSide(); tRender(); });
   let lastTW = 0; new ResizeObserver(() => { if (!viewOn('tile')) return; const w = tArea.clientWidth; tResize(); if (lastTW && Math.abs(w - lastTW) > 60) tFit(); lastTW = w; }).observe(tArea);
 }
