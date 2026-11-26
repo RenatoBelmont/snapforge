@@ -1,5 +1,5 @@
 // Guarda o app no iPad para abrir sem internet. A versão muda a cada build.
-const VERSAO = '1.3.0-7aed1d3c67';
+const VERSAO = '1.3.0-90a7126b59';
 const CACHE = 'snapforge2-' + VERSAO;
 const ARQUIVOS = ['./', './index.html', './manifest.webmanifest', './icons/apple-touch-icon.png', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARQUIVOS)).then(() => self.skipWaiting())); });

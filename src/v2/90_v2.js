@@ -32,4 +32,6 @@ const _setTheme = setTheme;
 setTheme = function (dark) { _setTheme(dark); const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? THEME_META.dark : THEME_META.light; };
 
 renderPRow();
+// o LCD acende uma vez, ao abrir; trocar de aba não repete a animação
+setTimeout(() => document.body.classList.remove('boot'), 900);
 { const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = document.documentElement.classList.contains('dark') ? THEME_META.dark : THEME_META.light; }

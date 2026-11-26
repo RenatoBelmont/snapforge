@@ -1,3 +1,6 @@
 node_modules/
 tests/screenshots/
 .claude/settings.local.json
+.impeccable/hook.cache.json
+.impeccable/questions/
+.impeccable/config.local.json

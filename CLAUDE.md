@@ -1,6 +1,6 @@
 # Snapforge — guia do projeto (para o Claude Code)
 
-Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.2.4**.
+Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.3.0**. Existem **duas interfaces** em comparação (veja "Interface nova").
 
 Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad com Apple Pencil** e também no Windows (Chrome/Firefox). Interface 100% em **português do Brasil**.
 
@@ -30,6 +30,8 @@ src/
   shell.html         HTML + todo o CSS + marcadores de build
   engines.js         Pixel Snapper e Sprite Normals (porte JS dos projetos Rust da Sprite Fusion)
   00_base.js … 11_init.js   o app, concatenado em ordem alfabética
+  v2/                interface nova, em comparação: shell.html (HTML+CSS próprios), 90_v2.js (fileira de paleta, LCD),
+                     fonts/ (Silkscreen, OFL, embutida em base64 no build), DESIGN.md (sistema visual da v2)
 tests/
   e2e.js             101 verificações no navegador (Playwright + Chromium)
   engines-vs-rust.js compara os motores JS com os binários Rust originais
@@ -38,6 +40,10 @@ tests/
 dist/
   snapforge.html     arquivo único (bom no computador)
   pwa/               index.html + sw.js + manifest + icons/  → publicar no GitHub Pages
+  snapforge-v2.html, pwa-v2/   o mesmo, com a interface nova
+PRODUCT.md           fatos do produto (usado pelo impeccable)
+.claude/             plugin frontend-design (settings.json) e skills ui-ux-pro-max e impeccable
+.impeccable/         contrato de direção da v2 e exceções do detector do impeccable
 ```
 
 ## Build
@@ -46,7 +52,7 @@ dist/
 npm install                 # só para testes/ícones
 npx playwright install chromium
 npm run build               # = node build.js
-npm test                    # build + tests/e2e.js
+npm test                    # build + tests/e2e.js nas duas interfaces (--v2 = só a nova: npm run test:v2)
 ```
 
 Se o Chromium já estiver instalado em outro lugar (ex.: ambiente do Claude Code na nuvem), aponte `PW_CHROMIUM=/caminho/do/chrome` em vez de rodar `playwright install`. O teste confere que `#ver` bate com o `version` do `package.json`.
@@ -58,6 +64,15 @@ Se o Chromium já estiver instalado em outro lugar (ex.: ambiente do Claude Code
 4. Gera `dist/pwa/sw.js` com cache `snapforge-<versão>-<hash>` (rede primeiro, cache offline) e o `manifest.webmanifest`.
 
 O desenho do ícone está na constante `ART` (SVG 10×10) em `build.js`. Se mudar, rode `npm run build:icons`.
+
+## Interface nova (`src/v2/`, em comparação)
+
+Pedido do Renato (1.3.0): uma **cópia** com interface reformulada, lado a lado com a atual, para decidir depois qual manter. **Não substitui** a atual.
+- Direção "portátil", escolhida por ele no sorteio do impeccable: carcaça neutra, teclas com relevo, tela escura em volta do desenho, fileira de paleta sempre visível, faixa LCD com estado e cor. Detalhes e tokens em `src/v2/DESIGN.md`; contrato em `.impeccable/surfaces/src-v2-shell-html.md`. Ajuste pedido no piloto: **trilho em uma coluna** (o tamanho das teclas acompanha a altura da tela).
+- **Mesma lógica**: o build concatena `src/*.js` + `src/v2/*.js` dentro de `src/v2/shell.html`. A v2 precisa manter os IDs/classes que o JS usa; o que for exclusivo dela entra em `src/v2/90_v2.js` (que roda depois do `init()`). A versão vem de `src/shell.html` (`__VERSION__`).
+- **Mesmos dados**: as duas usam as mesmas chaves `snapforge.*` do localStorage — no mesmo navegador/aparelho abrem o mesmo projeto. O service worker da v2 usa cache `snapforge2-*` para não apagar o da atual.
+- Endereços: atual `…/snapforge/dist/pwa/`, nova `…/snapforge/dist/pwa-v2/` (no iPad dá para instalar as duas; a nova se chama "Snapforge 2").
+- Se a v2 for escolhida: mover `src/v2/shell.html` para `src/shell.html`, `90_v2.js` para `src/`, DESIGN.md para a raiz, atualizar as regras 2–3 acima e apagar a geração dupla no `build.js`. Se for descartada: apagar `src/v2/`, `dist/*v2*` e o trecho da v2 no `build.js`/`tests/e2e.js`.
 
 ## Módulos (`src/`)
 
@@ -145,6 +160,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 
 ## Histórico
 
+- **1.3.0** — **interface nova em comparação** (`src/v2/`, `dist/pwa-v2/`), feita com as skills de design instaladas no repositório (frontend-design, ui-ux-pro-max, impeccable): mundo "portátil", trilho em uma coluna, fileira de paleta, faixa LCD, LED de salvamento, contraste medido ≥ 4,5:1 nos dois temas; a bateria e2e roda nas duas interfaces. Na atual nada muda além da versão (e o texto vazio do Snapper agora segue o nome do botão).
 - **1.2.4** — correção de verdade do balde do Tilemap: `tFill` agora diz se mudou algo e o traço é marcado como alterado — antes o `tEnd` achava que nada mudou, não redesenhava o mapa **e descartava o passo de desfazer** (o balde nunca foi desfazível). Teste e2e reproduz a sequência relatada (balde → tile → mapa) com o mapa já redesenhado.
 - **1.2.3** — (tentativa incompleta) correção: o balde do Tilemap preenchia os dados mas a tela só atualizava na ação seguinte (faltava marcar o mapa para redesenhar; bug vindo da 1.2.0). Teste e2e agora confere o desenho, não só os dados.
 - **1.2.2** — Pixel Snapper **idêntico ao Rust** também nas cores do k-means (ChaCha8 + `gen_range` + `WeightedIndex` portados, contas em f32), e mais rápido (cálculo por cor única); `test:engines` passa a exigir igualdade byte a byte e cobre 4–64 cores; GitHub Pages configurado (redirecionamento na raiz + `.nojekyll`).

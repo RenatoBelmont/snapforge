@@ -45,7 +45,7 @@ $('#sK').oninput = (e) => { $('#sKv').textContent = e.target.value; };
 $('#sPxMode').onchange = (e) => { $('#sPx').disabled = e.target.value !== 'manual'; };
 function setSnapInput(img) {
   snapIn = img; drawToPane($('#sIn'), img); $('#sInE').style.display = 'none'; $('#sInT').textContent = `original · ${img.width}×${img.height}`;
-  $('#sGo').disabled = false; snapOut = null; $('#sOut').width = 0; $('#sOutE').style.display = ''; $('#sOutE').textContent = 'toque em Aplicar'; $('#sStats').innerHTML = '';
+  $('#sGo').disabled = false; snapOut = null; $('#sOut').width = 0; $('#sOutE').style.display = ''; $('#sOutE').textContent = 'toque em ' + $('#sGo').textContent.trim(); // segue o nome do botão em cada interface $('#sStats').innerHTML = '';
   ['sToEd', 'sToLayer', 'sToTile', 'sDl', 'sToN'].forEach(id => $('#' + id).disabled = true);
   let m = 0; for (let i = 0; i < img.data.length; i += 16) if (img.data[i] > 220 && img.data[i + 1] < 60 && img.data[i + 2] > 220) m++; $('#sKey').checked = m > img.data.length / 16 * 0.05;
 }
