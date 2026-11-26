@@ -61,7 +61,7 @@ function renderColor() {
     <div class="row"><div id="palPickHost" style="flex:1;min-width:0"></div>${tbx2('palAdd', 'plus', 'Adicionar a cor atual à paleta')}${tbx2('palDel', 'trash', 'Remover a cor selecionada da paleta', 'danger')}</div>
     <div class="swatches">${pal.map((h, i) => `<button class="sw${i === st.swatch ? ' on' : ''}" style="background:${h}" data-sw="${i}" title="${h}"></button>`).join('')}</div>
     ${recent.length ? `<div class="row" style="gap:6px"><span class="small muted">Recentes</span><div class="recent">${recent.slice(0, 9).map(r => `<button style="background:${r}" data-rc="${r}" title="${r}"></button>`).join('')}</div></div>` : ''}
-    <div class="row wrap"><button class="btn sm" data-pc="palFromImg">Extrair do desenho</button><button class="btn sm" data-pc="palHex">Colar hex</button></div>`;
+    <div class="row wrap"><button class="btn sm" data-pc="palFromImg">Extrair do desenho</button><button class="btn sm" data-pc="palHex">Colar hex</button><button class="btn sm" data-pc="palLospec" title="Importar uma paleta do Lospec pelo link ou pelo nome (precisa de internet)">${ico('download')}Do Lospec</button><button class="btn sm" data-pc="palFile" title="Abrir arquivo de paleta .hex, .gpl ou .pal (funciona sem internet)">${ico('folder')}Arquivo</button></div>`;
   palPick = palettePicker($('#palPickHost'), { value: palName, onChange: (v) => { palName = v; LS.set('palName', palName); st.swatch = -1; renderColor(); renderFaixa(); } });
   $('#hexIn').addEventListener('input', (e) => { let v = e.target.value.trim(); if (v[0] !== '#') v = '#' + v; if (/^#[0-9a-f]{6}$/i.test(v)) setColor([...hex2rgb(v), st.color[3]], true); });
   $('#hexIn').addEventListener('change', () => { pushRecent(rgb2hex(...st.color.slice(0, 3))); renderColor(); });
@@ -74,10 +74,12 @@ function setColor(c, live) {
   else { pushRecent(rgb2hex(c[0], c[1], c[2])); renderColor(); }
   renderFaixa();
 }
+function setBrush(n) { st.brush = clamp(n | 0, 1, 16); LS.set('brush', st.brush); renderBrush(); render(); }
 function renderBrush() {
   const b = $('#cb-pincel'); if (!b) return; const t = st.tool;
   const ck = (id, on, label, title = '') => `<label class="chk" title="${esc(title)}"><input type="checkbox" data-ck="${id}"${on ? ' checked' : ''}> ${label}</label>`;
-  b.innerHTML = `<div class="row"><span class="small muted" style="width:62px">Tamanho</span><div class="seg" id="brushSeg">${[1, 2, 3, 4, 5].map(n => `<button data-b="${n}" class="${n === st.brush ? 'on' : ''}">${n}</button>`).join('')}</div></div>
+  b.innerHTML = `<div class="lbl"><span>Tamanho do pincel: ${st.brush} px <span class="muted" style="font-weight:500">(teclas [ e ])</span></span><div class="chips" id="brushSeg">${BRUSHES.map(n => `<button data-b="${n}" class="${n === st.brush ? 'on' : ''}" aria-label="Pincel de ${n} px">${n}</button>`).join('')}</div></div>
+    <div class="row"><span class="small muted" style="width:62px">Formato</span><div class="seg" id="brushShape"><button data-bs="round" class="${st.brushShape !== 'square' ? 'on' : ''}">Redondo</button><button data-bs="square" class="${st.brushShape === 'square' ? 'on' : ''}">Quadrado</button></div></div>
     ${ck('pixelPerfect', st.pixelPerfect, 'Pixel perfeito no lápis', 'Tira os cantos em L dos traços de 1 px')}
     ${ck('fillShape', st.fillShape, 'Formas preenchidas')}
     ${ck('contiguous', st.contiguous, 'Balde só na área conectada', 'Desligado: troca a cor no desenho inteiro')}
@@ -88,7 +90,8 @@ function renderBrush() {
 $('#side').addEventListener('change', (e) => { const c = e.target.closest('[data-ck]'); if (!c) return; const k = c.dataset.ck;
   if (k === 'penOnly') setPenOnly(c.checked); else { st[k] = c.checked; render(); } });
 $('#side').addEventListener('click', async (e) => {
-  const bb = e.target.closest('[data-b]'); if (bb) { st.brush = +bb.dataset.b; renderBrush(); render(); return; }
+  const bb = e.target.closest('[data-b]'); if (bb) { setBrush(+bb.dataset.b); return; }
+  const bs = e.target.closest('[data-bs]'); if (bs) { st.brushShape = bs.dataset.bs; LS.set('brushShape', st.brushShape); renderBrush(); render(); return; }
   const rc = e.target.closest('[data-rc]'); if (rc) { setColor([...hex2rgb(rc.dataset.rc), 255]); return; }
   const sw = e.target.closest('[data-sw]'); if (sw) { setColor([...hex2rgb(palList(palName)[+sw.dataset.sw]), 255]); return; }
   const vis = e.target.closest('[data-vis]'); if (vis) { pushHist(); const L = doc.layers[+vis.dataset.vis]; L.visible = !L.visible; refreshAfterEdit(); return; }
@@ -104,6 +107,16 @@ $('#side').addEventListener('click', async (e) => {
   else if (k === 'palDel') { const l = palList(palName), i = l.indexOf(rgb2hex(...st.color.slice(0, 3))); if (i < 0) return toast('Escolha uma cor da paleta primeiro'); if (l.length <= 1) return; l.splice(i, 1); savePal(palName, l); }
   else if (k === 'palFromImg') { const s = new Set(); for (let f = 0; f < doc.frames.length; f++) { const c = composite(f); for (let i = 0; i < c.data.length; i += 4) if (c.data[i + 3] > 0) s.add(rgb2hex(c.data[i], c.data[i + 1], c.data[i + 2])); if (s.size > 256) break; }
     if (!s.size) return toast('O desenho está vazio'); if (s.size > 256) return toast('Mais de 256 cores — use o Pixel Snapper para reduzir'); savePal('Do desenho', [...s]); toast(s.size + ' cores extraídas'); }
+  else if (k === 'palLospec') {
+    const f = await modal('Importar do Lospec', `<label class="lbl">Link ou nome da paleta<input class="input-field" id="lsIn" placeholder="lospec.com/palette-list/resurrect-64" autocomplete="off" autocapitalize="off" spellcheck="false"></label><p class="hint">Copie o endereço da página da paleta no Lospec, ou digite o nome dela (ex.: Resurrect 64). A paleta fica salva no aparelho e depois funciona sem internet.</p>`, [['Cancelar', null], ['Importar', '__form', 'primary']]);
+    if (!f) return; const q = $('#lsIn', f).value;
+    try { const p = await withBusy('Buscando no Lospec…', () => fetchLospecPalette(q), lospecSlug(q)); const r = adoptPalette(p.name, p.colors);
+      toast(r.builtin ? `${r.name} já está nas paletas padrão: selecionada` : `${r.name}${p.author ? ' (' + p.author + ')' : ''}: ${p.colors.length} cores salvas`, 3200); }
+    catch (er) { toast(er.message || 'Não deu para importar', 4200); } }
+  else if (k === 'palFile') {
+    const file = await pickFile(''); if (!file) return; // sem filtro: o Safari do iPad deixa cinza extensões que não conhece (.gpl/.pal); o leitor recusa o que não for paleta
+    try { const p = parsePaletteFile(new Uint8Array(await file.arrayBuffer()), file.name), r = adoptPalette(p.name, p.colors); toast(r.builtin ? `${r.name} já está nas paletas padrão: selecionada` : `${r.name}: ${p.colors.length} cores salvas`, 3000); }
+    catch (er) { toast(er.message || 'Arquivo de paleta inválido', 4000); } }
   else if (k === 'palHex') { const f = await modal('Colar paleta', `<label class="lbl">Nome<input class="input-field" id="phN" value="Minha paleta"></label><label class="lbl">Cores em hex (vírgula, espaço ou uma por linha — dá para colar do Lospec)<textarea class="input-field" id="phT" placeholder="1a1c2c, 5d275d, b13e53"></textarea></label>`, [['Cancelar', null], ['Salvar', '__form', 'primary']]);
     if (!f) return; const list = ($('#phT', f).value.match(/[0-9a-f]{6}/gi) || []).map(h => '#' + h.toLowerCase()); if (!list.length) return toast('Nenhuma cor hex encontrada'); savePal($('#phN', f).value.trim() || 'Minha paleta', [...new Set(list)].slice(0, 256)); toast(list.length + ' cores salvas'); }
   else if (k === 'layAdd') addLayer(); else if (k === 'layDup') dupLayer();
@@ -212,7 +225,7 @@ document.addEventListener('keydown', (e) => {
   if (KEYMAP[k]) { setTool(KEYMAP[k]); return; }
   if (k === 'x') { st.mirrorX = !st.mirrorX; renderBrush(); render(); } else if (k === 'f') toggleFoco(); else if (k === 'c' && document.body.classList.contains('foco')) $('#faixaBtn').click();
   else if (k === '0') fit(); else if (k === '+' || k === '=') $('#zoomIn').click(); else if (k === '-') $('#zoomOut').click();
-  else if (k === '[') { st.brush = Math.max(1, st.brush - 1); renderBrush(); render(); } else if (k === ']') { st.brush = Math.min(5, st.brush + 1); renderBrush(); render(); }
+  else if (k === '[' || k === ']') { const i = BRUSHES.indexOf(st.brush), j = i < 0 ? BRUSHES.findIndex(n => n > st.brush) - (k === '[' ? 1 : 0) : i + (k === '[' ? -1 : 1); setBrush(BRUSHES[clamp(j, 0, BRUSHES.length - 1)]); }
   else if (k === 'delete' || k === 'backspace') { e.preventDefault(); clearArea(); }
   else if (k.startsWith('arrow')) { e.preventDefault(); const s = e.shiftKey ? 8 : 1; nudge(k === 'arrowleft' ? -s : k === 'arrowright' ? s : 0, k === 'arrowup' ? -s : k === 'arrowdown' ? s : 0); }
   else if (k === ',') { cur.frame = (cur.frame - 1 + doc.frames.length) % doc.frames.length; fullRefresh(); } else if (k === '.') { cur.frame = (cur.frame + 1) % doc.frames.length; fullRefresh(); }

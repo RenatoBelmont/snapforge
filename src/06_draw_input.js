@@ -42,7 +42,7 @@ const inside = (x, y) => x >= 0 && y >= 0 && x < doc.w && y < doc.h;
 function plotRaw(arr, x, y, c) { if (!inside(x, y)) return; const o = (y * doc.w + x) * 4; arr[o] = c[0]; arr[o + 1] = c[1]; arr[o + 2] = c[2]; arr[o + 3] = c[3]; }
 function stampPoints(x, y) {
   const pts = [], b = st.brush, r0 = -Math.floor((b - 1) / 2);
-  for (let dy = 0; dy < b; dy++) for (let dx = 0; dx < b; dx++) { if (b >= 3 && b % 2 && (dx - (b - 1) / 2) ** 2 + (dy - (b - 1) / 2) ** 2 > (b / 2) ** 2) continue; pts.push([x + r0 + dx, y + r0 + dy]); }
+  for (let dy = 0; dy < b; dy++) for (let dx = 0; dx < b; dx++) { if (b >= 3 && st.brushShape !== 'square' && (dx - (b - 1) / 2) ** 2 + (dy - (b - 1) / 2) ** 2 > (b / 2) ** 2) continue; pts.push([x + r0 + dx, y + r0 + dy]); }
   const all = [...pts];
   for (const [p, q] of pts) { if (st.mirrorX) all.push([doc.w - 1 - p, q]); if (st.mirrorY) all.push([p, doc.h - 1 - q]); if (st.mirrorX && st.mirrorY) all.push([doc.w - 1 - p, doc.h - 1 - q]); }
   return all;

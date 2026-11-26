@@ -1,6 +1,6 @@
 # Snapforge — guia do projeto (para o Claude Code)
 
-Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.5.0**.
+Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.6.0**.
 
 Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad com Apple Pencil** e também no Windows (Chrome/Firefox). Interface 100% em **português do Brasil**.
 
@@ -11,7 +11,7 @@ Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad c
 1. **Versão em toda alteração.** SemVer: PATCH = correção/ajuste; MINOR = recurso novo sem quebrar dados; MAJOR = mudança que quebra o formato salvo (localStorage ou `.json`). A versão vive em **dois lugares e eles precisam bater**: `const VERSION` em `src/shell.html` e `"version"` em `package.json`. Ela aparece no cabeçalho do app e vira a chave do cache do service worker no build. Registre a mudança na seção "Histórico" abaixo.
 2. **Visual "portátil"** (escolhido pelo Renato na 1.4.0; tokens e regras em **`DESIGN.md`**): carcaça neutra (cinza-massa no claro, grafite no escuro), teclas com relevo, destaque **ameixa** só para ação/seleção, desenho numa "tela" escura recuada, **só a arte tem cor saturada**, faixa **LCD** com letra de pixel (Silkscreen embutida), **LED** de salvamento. Contraste ≥ 4,5:1 medido nos dois temas. **Ícone próprio** (a bigorna em pixel).
 3. **Layout**: cabeçalho numa linha só (marca + versão + abas + LED + tema), **trilho de ferramentas em uma coluna** à esquerda (pedido do Renato; a tecla vai de 44 a 38 px conforme a altura da tela), canvas no centro com a **fileira de paleta** e o **LCD** embaixo, **painel direito em módulos recolhíveis**. **Tudo cabe numa tela, sem rolar a página** — só os painéis internos rolam. Há teste automatizado para isso.
-4. **Sem IA / sem APIs pagas.** A geração por IA (Gemini/Groq) foi removida a pedido na 1.2.0. O que ficou é o botão "Prompt para o ChatGPT" no Snapper, que só monta texto — não chama nada. Não reintroduzir chamadas de rede.
+4. **Sem IA / sem APIs pagas / rede só no Lospec.** A geração por IA (Gemini/Groq) foi removida a pedido na 1.2.0; o botão "Prompt para o ChatGPT" no Snapper só monta texto. **Única exceção de rede, liberada pelo Renato na 1.6.0:** "Do Lospec" (módulo Cor) busca `https://lospec.com/palette-list/<slug>.json` **só quando o usuário pede**; a paleta fica salva e o app continua funcionando offline. Não acrescentar outras chamadas de rede sem pedido explícito.
 5. **Sem dependências no app**: nada de CDN, frameworks ou fontes externas. Precisa abrir offline e como arquivo único. (Playwright e pngjs são só para build de ícones e testes.)
 6. **iPad primeiro**: alvos de toque ≥ 30–44 px, `touch-action` correto, nada de hover obrigatório, `inputmode` em campos numéricos, safe-area. Todo recurso de desenho tem que funcionar com caneta, dedo e mouse.
 7. **Não editar `dist/` à mão.** Edite `src/` e rode o build.
@@ -32,7 +32,7 @@ src/
   00_base.js … 11_init.js   o app, concatenado em ordem alfabética
   fonts/             Silkscreen (OFL), embutida em base64 no build — sem rede
 tests/
-  e2e.js             104 verificações no navegador (Playwright + Chromium)
+  e2e.js             115 verificações no navegador (Playwright + Chromium)
   engines-vs-rust.js compara os motores JS com os binários Rust originais
   snapper-structure.js  idem, checando grade e cor-base célula a célula
   fixtures/          imagens de teste + make_fixtures.js que as gera
@@ -80,6 +80,7 @@ Scripts clássicos concatenados, todos no mesmo escopo global (sem `import`/`exp
 | `02_utils.js` | `toast`, `busy`/`withBusy` (card de carregamento central), `modal`/`confirmar`, leitura de arquivos, `saveBlob` (usa a folha de compartilhar no iPad), `fitImage`, `keyMagenta`, `LS` (localStorage com prefixo `snapforge.` e migração das chaves antigas `pixelaria.`) |
 | `03_engine.js` | Worker dos motores (`runEngine('snap'|'normal', img, opts)`) com fallback na thread principal |
 | `04_pal.js` | Paletas embutidas (Sweetie 16, PICO-8, Endesga 32, Game Boy, 1-bit + 8 do Lospec com o autor em comentário: RETURN 20, Minty chip, CC-29, Resurrect 64, SLSO8, Lost Century, Twilight 5, CafeArisuki), paletas do usuário, cores recentes |
+| `04c_palimport.js` | Importar paletas: `parsePaletteFile` (.hex, .gpl do Lospec/GIMP, .pal JASC e RIFF), `lospecSlug`, `fetchLospecPalette` (única chamada de rede; o 404 do Lospec vem sem CORS, então uma falha testa `pico-8` para separar "nome errado" de "sem internet"), `adoptPalette` (se as cores já forem de uma paleta padrão, só a seleciona) |
 | `04b_palpicker.js` | Seletor de paleta **com prévia das cores** (`palettePicker(host, {value, auto, doc, onChange})`) |
 | `05_doc.js` | Documento do editor (`doc`: camadas × quadros de `Uint8ClampedArray` RGBA), estado `st`, histórico (`pushHist/undo/redo`, snapshots completos, máx. 80), `composite()` |
 | `06_draw_input.js` | Render do canvas (zoom/pan, xadrez, grade, simetria, seleção, prévia do pincel), ferramentas de desenho, **toda a entrada por ponteiro** (Pencil, toque, mouse, gestos, lupa do conta-gotas) |
@@ -102,7 +103,7 @@ Tudo em `localStorage` (por navegador/aparelho), chaves com prefixo `snapforge.`
 | `doc` | projeto do editor (mesmo formato do `.snapforge.json`) |
 | `tilemap` | mapa + tileset em data URL (mesmo formato do `.tilemap.json`) |
 | `palName`, `userPals`, `recentColors` | paletas e cores |
-| `penOnly`, `penSeen`, `faixa`, `cards`, `tcards`, `view`, `dark`, `loupe.*`, `s.fit`, `prompt`, `nOpts` | preferências de interface |
+| `penOnly`, `penSeen`, `faixa`, `cards`, `tcards`, `view`, `dark`, `loupe.*`, `s.fit`, `prompt`, `nOpts`, `brush` (1–16), `brushShape` (`round`/`square`) | preferências de interface |
 
 - **Projeto do editor** (`app: 'snapforge'`, `schema: 2`): `{name, w, h, fps, layers:[{name, visible, opacity, locked}], frames:[[base64 RGBA por camada]], cur, palName}`. A importação aceita também `app: 'pixelaria'` (versões 1.0.x).
 - **Mapa** (`app: 'snapforge-tilemap'`, `schema: 1`): `{name, tw, th, mw, mh, tileset:{name, url(dataURL), w, h}, layers:[{name, visible, auto, data:[índice|-1], cells?, rules?[16]}]}`.
@@ -156,6 +157,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 
 ## Histórico
 
+- **1.6.0** — **importar paletas**: "Do Lospec" (link ou nome; exceção de rede da regra 4, liberada pelo Renato) e "Arquivo" (.hex, .gpl, .pal JASC/RIFF, offline; seletor sem filtro de extensão porque o Safari do iPad deixa cinza .gpl/.pal). **Pincéis**: tamanhos 1, 2, 3, 4, 5, 6, 8, 10, 12 e 16 px (botões e teclas `[` `]`), formato redondo ou quadrado em qualquer tamanho (antes os pares eram sempre quadrados), ambos salvos no aparelho. Testes com o Lospec simulado (115 verificações).
 - **1.5.0** — 8 paletas do Lospec embutidas (RETURN 20, Minty chip, CC-29, Resurrect 64, SLSO8, Lost Century, Twilight 5, CafeArisuki), conferidas cor a cor com o JSON oficial e com os nomes/autores de lá. Avaliada a API do Lospec (ver Backlog).
 - **1.4.0** — **design "portátil" vira o oficial** (escolha do Renato após comparar na 1.3.0): `src/v2/shell.html` → `src/shell.html`, fileira de paleta/LCD integrados ao app (`07e_prow.js`, sem os encaixes provisórios), `DESIGN.md` na raiz, regras 2–3 atualizadas, build com uma interface só. `dist/pwa-v2/` virou redirecionamento para `dist/pwa/` com um service worker que limpa o cache e se desinstala (para quem instalou o "Snapforge 2").
 - **1.3.0** — **interface nova em comparação** (`src/v2/`, `dist/pwa-v2/`), feita com as skills de design instaladas no repositório (frontend-design, ui-ux-pro-max, impeccable): mundo "portátil", trilho em uma coluna, fileira de paleta, faixa LCD, LED de salvamento, contraste medido ≥ 4,5:1 nos dois temas; a bateria e2e roda nas duas interfaces. Na atual nada muda além da versão (e o texto vazio do Snapper agora segue o nome do botão).
@@ -174,8 +176,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 - Exportar direto para **cena do Godot (.tscn/TileSet)** e **Unity Tilemap** (hoje: via Tiled).
 - Tilemap: ferramenta de seleção/mover, atributos/colisão por tile (o Sprite Fusion tem "Attributes"), mapa infinito, redimensionar com âncora.
 - Exportar **GIF** da animação.
-- Importar paletas de arquivo (`.gpl`, `.hex`, `.pal` do Lospec) — funciona offline, sem exceção às regras.
-- **API do Lospec** (avaliada na 1.5.0): `https://lospec.com/palette-list/<slug>.json` devolve `{name, author, colors[]}` com CORS liberado (`access-control-allow-origin: *`), então o app conseguiria importar uma paleta colando o link ou o nome. A busca/listagem (`/palette-list/load?...`) **não** tem CORS: não dá para navegar no catálogo de dentro do app sem um servidor no meio. Usar exigiria uma exceção à regra 4 (uma chamada de rede só quando o usuário pede; a paleta fica salva e o resto continua offline). Aguardando decisão do Renato.
+- Navegar/buscar no catálogo do Lospec de dentro do app: o endpoint de listagem (`/palette-list/load?...`) não tem CORS, então só com um servidor no meio (hoje a importação é por link ou nome).
 - Pressão da Pencil (ex.: tamanho do pincel) — hoje é ignorada de propósito.
 - Projetos grandes podem estourar o `localStorage` (~5 MB): migrar para IndexedDB se acontecer.
 - Rodar a bateria de testes no WebKit.

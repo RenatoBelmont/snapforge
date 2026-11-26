@@ -189,6 +189,37 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   // ---- paletas do Lospec (1.5.0)
   ok(await p.evaluate(() => [['RETURN 20', 20], ['Minty chip', 30], ['CC-29', 29], ['Resurrect 64', 64], ['SLSO8', 8], ['Lost Century', 16], ['Twilight 5', 5], ['CafeArisuki', 10]].every(([n, k]) => PALETTES[n] && palList(n).length === k && palList(n).every(c => /^#[0-9a-f]{6}$/.test(c)))), 'paletas do Lospec embutidas com o número certo de cores');
   ok(await p.evaluate(() => { const pv = palName; palName = 'Resurrect 64'; renderColor(); renderFaixa(); const n = [document.querySelectorAll('#cb-cor .sw').length, document.querySelectorAll('#pRow button.c').length]; palName = pv; renderColor(); renderFaixa(); return n.join(); }) === '64,64', 'Resurrect 64 aparece inteira no painel e na fileira de paleta');
+  // ---- importar paletas (1.6.0): arquivo e Lospec (Lospec simulado: o teste não depende de internet)
+  ok(await p.evaluate(() => { const enc = (s) => new TextEncoder().encode(s);
+    const hex = parsePaletteFile(enc('fbbbad\r\nee8695\r\n4a7a96\r\n'), 'twilight-5.hex');
+    const gplL = parsePaletteFile(enc('GIMP Palette\r\n#Palette Name: Twilight 5\r\n#Colors: 2\r\n251\t187\t173\tfbbbad\r\n238\t134\t149\tee8695\r\n'), 'x.gpl');
+    const gplG = parsePaletteFile(enc('GIMP Palette\nName: Minha\nColumns: 4\n#\n  0   0   0\tPreto\n255 255 255\tBranco\n'), 'y.gpl');
+    const jasc = parsePaletteFile(enc('JASC-PAL\r\n0100\r\n2\r\n251 187 173\r\n41 40 49\r\n'), 'z.pal');
+    const riff = new Uint8Array(24 + 8); const dv = new DataView(riff.buffer); riff.set(enc('RIFF'), 0); dv.setUint32(4, 24, true); riff.set(enc('PAL data'), 8); dv.setUint32(16, 12, true); dv.setUint16(20, 0x300, true); dv.setUint16(22, 2, true); riff.set([255, 0, 0, 0, 0, 128, 255, 0], 24);
+    const rp = parsePaletteFile(riff, 'win.pal');
+    return hex.colors.join() === '#fbbbad,#ee8695,#4a7a96' && hex.name === 'twilight 5' && gplL.name === 'Twilight 5' && gplL.colors.length === 2 && gplG.name === 'Minha' && gplG.colors.join() === '#000000,#ffffff'
+      && jasc.colors.join() === '#fbbbad,#292831' && rp.colors.join() === '#ff0000,#0080ff'; }), 'lê paletas .hex, .gpl (Lospec e GIMP), .pal JASC e .pal RIFF');
+  ok(await p.evaluate(() => { try { parsePaletteFile(new TextEncoder().encode('isso não é paleta'), 'a.txt'); return false; } catch (e) { return /Não achei cores/.test(e.message); } }), 'arquivo sem cores dá erro claro');
+  ok(await p.evaluate(() => ['https://lospec.com/palette-list/resurrect-64', 'lospec.com/palette-list/resurrect-64.gpl', 'Resurrect 64', ' resurrect-64 '].every(s => lospecSlug(s) === 'resurrect-64')), 'link, arquivo ou nome viram o mesmo slug do Lospec');
+  const errsAntesLospec = errs.length;
+  await p.route('https://lospec.com/palette-list/**', (route) => { const u = route.request().url();
+    if (u.endsWith('/minha-teste.json')) return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json', body: JSON.stringify({ name: 'Minha Teste', author: 'Fulano', colors: ['112233', '445566', 'zzzzzz'] }) });
+    if (u.endsWith('/pico-8.json')) return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json', body: JSON.stringify({ name: 'PICO-8', colors: ['000000'] }) });
+    return route.abort(); }); // o 404 real do Lospec vem sem CORS: o navegador o vê como falha de rede
+  await p.click('.tab[data-v=editor]'); await sleep(150);
+  await p.click('[data-pc=palLospec]'); await p.fill('#lsIn', 'https://lospec.com/palette-list/minha-teste'); await p.click('#mBox .btn.pri'); await sleep(600);
+  ok(await p.evaluate(() => palName === 'Minha Teste' && palList('Minha Teste').join() === '#112233,#445566') && (await p.textContent('#toast')).includes('Fulano'), 'importa do Lospec pelo link, ignora cor inválida e credita o autor');
+  ok(await p.evaluate(async () => { try { await fetchLospecPalette('nao-existe'); return false; } catch (e) { return /Não achei "nao-existe"/.test(e.message); } }), 'paleta inexistente no Lospec: mensagem de nome errado (não de "sem internet")');
+  ok(await p.evaluate(async () => { const r = adoptPalette('Qualquer', palList('SLSO8')); return r.builtin && palName === 'SLSO8'; }), 'importar uma paleta que já é padrão só seleciona a padrão');
+  await p.unroute('https://lospec.com/palette-list/**');
+  { const novos = errs.splice(errsAntesLospec); ok(novos.every(x => x.includes('net::ERR_FAILED')), 'a única mensagem no console durante o Lospec simulado é a falha de rede provocada de propósito'); }
+  // ---- pincéis (1.6.0)
+  ok(await p.evaluate(() => { const n = () => { const a = px(); let k = 0; for (let i = 3; i < a.length; i += 4) if (a[i]) k++; return k; }; const L = doc.layers[cur.layer]; L.locked = false; L.visible = true;
+    const r = []; for (const [s, sh] of [[8, 'round'], [8, 'square'], [16, 'square']]) { px().fill(0); setBrush(s); st.brushShape = sh; setTool('pencil'); beginStroke(16, 16); endStroke(); r.push(n()); }
+    setBrush(1); st.brushShape = 'round'; return r.join(); }) === '52,64,256', 'pincel de 8 redondo, 8 quadrado e 16 quadrado');
+  await p.click('#cb-pincel [data-b="10"]'); await p.keyboard.press(']'); const b12 = await p.evaluate(() => st.brush); await p.keyboard.press('['); await p.keyboard.press('[');
+  ok(b12 === 12 && await p.evaluate(() => st.brush === 8 && localStorage.getItem('snapforge.brush') === '8'), 'botões de tamanho e teclas [ ] percorrem 1–16 e o tamanho fica salvo');
+  await p.evaluate(() => setBrush(1));
   // ---- correções da 1.2.1
   await p.click('.tab[data-v=snap]'); await sleep(150);
   const nl0 = await p.evaluate(() => doc.layers.length);
