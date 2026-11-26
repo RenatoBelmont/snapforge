@@ -971,7 +971,7 @@ pre.prompt{white-space:pre-wrap;font:12px/1.55 var(--mono);background:rgb(var(--
 </script>
 <script>
 'use strict';
-const VERSION = '1.10.0';
+const VERSION = '1.10.1';
 /* ---- 00_base.js ---- */
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1138,9 +1138,10 @@ function runEngine(op, img, opts) {
 /* ---- 04_pal.js ---- */
 /* ======================= paletas e cores recentes ======================= */
 const PALETTES = {
-  // do Renato (Cosmic Valley): as primeiras da lista; Pogo City é a paleta inicial
-  'Pogo City': '051326,1f275e,58272d,5e5a24,5a295f,186095,a1572c,655696,a05261,2394a5,9f9f1e,5c2ae0,e75e23,97599e,6492a4,e0625b,da2f9d,f1a022,5ca1d5,a160d2,999ca9,df63a2,f1d622,f09f60,22e5ec,e264d8,eda0a2,f8db60,5cecf1,e99ddb,f7dca1,9ee8f0,fafafb',
-  'Apartment': '020d23,082947,1c3372,1c639f,252a6c,3b425c,707a9e,c5d0e3,adaba3,e6ecf8,5aefe6,00e7ff,12a6bc,00a3ff,5c3e93,a163e6,c26cff,c64e8e,ff6ee7,f5ab76,ff8a2a,e84d2e,ffd166,fcf4bc,1e7a55,2faa6e,a8d463,bbe2cd',
+  // do Renato (Cosmic Valley): as primeiras da lista; Pogo City é a paleta inicial.
+  // Ordem por tonalidade: faixas de matiz (vermelho → laranja → amarelo → verde → ciano → azul → roxo → rosa), cada uma do escuro ao claro; neutros no fim.
+  'Pogo City': '58272d,a05261,e0625b,eda0a2,a1572c,e75e23,f1a022,f09f60,f7dca1,5e5a24,9f9f1e,f1d622,f8db60,2394a5,22e5ec,5cecf1,9ee8f0,051326,186095,6492a4,5ca1d5,1f275e,655696,5c2ae0,a160d2,5a295f,97599e,e264d8,e99ddb,da2f9d,df63a2,999ca9,fafafb',
+  'Apartment': 'e84d2e,ff8a2a,f5ab76,ffd166,fcf4bc,a8d463,1e7a55,2faa6e,bbe2cd,12a6bc,00e7ff,5aefe6,020d23,082947,1c3372,1c639f,00a3ff,252a6c,3b425c,707a9e,5c3e93,a163e6,c26cff,ff6ee7,c64e8e,adaba3,c5d0e3,e6ecf8',
   'Sweetie 16': '1a1c2c,5d275d,b13e53,ef7d57,ffcd75,a7f070,38b764,257179,29366f,3b5dc9,41a6f6,73eff7,f4f4f4,94b0c2,566c86,333c57',
   'PICO-8': '000000,1d2b53,7e2553,008751,ab5236,5f574f,c2c3c7,fff1e8,ff004d,ffa300,ffec27,00e436,29adff,83769c,ff77a8,ffccaa',
   'Endesga 32': 'be4a2f,d77643,ead4aa,e4a672,b86f50,733e39,3e2731,a22633,e43b44,f77622,feae34,fee761,63c74d,3e8948,265c42,193c3e,124e89,0099db,2ce8f5,ffffff,c0cbdc,8b9bb4,5a6988,3a4466,262b44,181425,ff0044,68386c,b55088,f6757a,e8b796,c28569',

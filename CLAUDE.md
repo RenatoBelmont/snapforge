@@ -1,6 +1,6 @@
 # Snapforge — guia do projeto (para o Claude Code)
 
-Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.10.0**.
+Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.10.1**.
 
 Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad com Apple Pencil** e também no Windows (Chrome/Firefox). Interface 100% em **português do Brasil**.
 
@@ -163,6 +163,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 
 ## Histórico
 
+- **1.10.1** — Pogo City e Apartment **ordenadas por tonalidade** (faixas de matiz de 30° a partir do vermelho, cada uma do escuro ao claro; neutros no fim). Mesmas cores, só a ordem muda.
 - **1.10.0** — paletas do Renato **Pogo City** (33 cores) e **Apartment** (28) fixas no topo da lista; **Pogo City é a paleta inicial** (`DEFAULT_PAL`) para quem abre o app pela primeira vez — quem já escolheu outra continua com ela. Testes que assumiam as cores da Sweetie 16 agora leem a paleta em uso. 152 verificações.
 - **1.9.1** — ícone de **importar** (seta entrando na caixa, `ico('import')`) em "Importar PNG" do Tilemap (usava a seta de envio, para fora) e em "Do Lospec" (usava o mesmo ícone de Exportar). Regra: `import` = trazer para dentro do app; `download` = exportar/baixar.
 - **1.9.0** — **vários tilesets no mesmo mapa**: antes o mapa tinha um tileset só e trocá-lo redesenhava tudo o que já estava pintado com o tileset novo. Agora cada célula lembra de qual tileset veio (schema 2 do mapa; o schema 1 continua abrindo igual); lista "Tilesets deste mapa"; conta-gotas troca de tileset; export Tiled com vários tilesets. 151 verificações.
