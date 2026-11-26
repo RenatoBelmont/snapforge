@@ -22,6 +22,8 @@ function modal(title, html, buttons) {
   });
 }
 $('#modal').addEventListener('pointerdown', (e) => { if (e.target.id === 'modal' && modal.cancel) modal.cancel(); });
+// chips de escolha única dentro de modais (<div class="chips" data-radio>): o toque marca um e desmarca os outros
+$('#mBox').addEventListener('click', (e) => { const b = e.target.closest('.chips[data-radio] > button'); if (b) b.parentNode.querySelectorAll(':scope > button').forEach(x => x.classList.toggle('on', x === b)); });
 const confirmar = async (msg, ok = 'Continuar') => !!(await modal('Confirmar', `<p class="sec" style="line-height:1.5">${esc(msg)}</p>`, [['Cancelar', false], [ok, true, 'primary']]));
 function imgToCanvas(img) { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(img.data), img.width, img.height), 0, 0); return c; }
 function drawToPane(cv, img) { cv.width = img.width; cv.height = img.height; cv.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(img.data), img.width, img.height), 0, 0); }
@@ -30,7 +32,6 @@ function fileToImage(file) {
     im.onload = () => { const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; const x = c.getContext('2d'); x.drawImage(im, 0, 0); URL.revokeObjectURL(url); res({ width: c.width, height: c.height, data: x.getImageData(0, 0, c.width, c.height).data }); };
     im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Não consegui ler essa imagem')); }; im.src = url; });
 }
-const b64ToImage = (b64, mime = 'image/png') => fetch(`data:${mime};base64,${b64}`).then(r => r.blob()).then(fileToImage);
 function pickFile(accept) { return new Promise((res) => { const f = $('#fileIn'); f.accept = accept; f.value = ''; f.onchange = () => res(f.files[0] || null); f.click(); }); }
 function bindDrop(el, cb) {
   el.addEventListener('click', async () => { const f = await pickFile('image/png,image/jpeg,image/gif,image/webp'); if (f) cb(f); });
@@ -48,6 +49,5 @@ function fitImage(img, w, h) { const out = new Uint8ClampedArray(w * h * 4), ox 
   for (let y = 0; y < img.height; y++) for (let x = 0; x < img.width; x++) { const tx = x + ox, ty = y + oy; if (tx < 0 || ty < 0 || tx >= w || ty >= h) continue; const s = (y * img.width + x) * 4; out.set(img.data.subarray(s, s + 4), (ty * w + tx) * 4); }
   return { width: w, height: h, data: out }; }
 function keyMagenta(img, tol = 60) { const d = new Uint8ClampedArray(img.data); for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 255) + d[i + 1] + Math.abs(d[i + 2] - 255) < tol) d[i + 3] = 0; return { width: img.width, height: img.height, data: d }; }
-function trimAlpha(img) { const d = new Uint8ClampedArray(img.data); for (let i = 3; i < d.length; i += 4) d[i] = d[i] < 128 ? 0 : 255; return { width: img.width, height: img.height, data: d }; }
 const slug = () => (doc.name || 'snapforge').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'snapforge';
 

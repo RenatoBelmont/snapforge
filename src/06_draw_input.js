@@ -1,5 +1,5 @@
 /* ======================= render do palco ======================= */
-const cv = $('#cv'), cx = cv.getContext('2d'), area = $('#area'), stageEl = $('#v-editor');
+const cv = $('#cv'), cx = cv.getContext('2d'), area = $('#area');
 const off = document.createElement('canvas'), offx = off.getContext('2d'), onionC = document.createElement('canvas');
 let overlay = null, selRect = null, hover = null, raf = 0;
 function resizeCanvas() { const r = area.getBoundingClientRect(), d = devicePixelRatio || 1; cv.width = Math.max(1, Math.round(r.width * d)); cv.height = Math.max(1, Math.round(r.height * d)); render(); }
@@ -54,11 +54,12 @@ function ellipsePts(x0, y0, x1, y1, filled) { const pts = [], a = Math.min(x0, x
   for (let y = c; y <= d; y++) for (let x = a; x <= b; x++) { if (!inE(x, y)) continue; if (filled || !inE(x - 1, y) || !inE(x + 1, y) || !inE(x, y - 1) || !inE(x, y + 1)) pts.push([x, y]); } return pts; }
 function floodFill(x, y, c) {
   const a = px(), w = doc.w, h = doc.h, o0 = (y * w + x) * 4, t = [a[o0], a[o0 + 1], a[o0 + 2], a[o0 + 3]];
-  if (t[0] === c[0] && t[1] === c[1] && t[2] === c[2] && t[3] === c[3]) return;
+  if (t[0] === c[0] && t[1] === c[1] && t[2] === c[2] && t[3] === c[3]) return false;
   const eq = (o) => a[o] === t[0] && a[o + 1] === t[1] && a[o + 2] === t[2] && a[o + 3] === t[3];
-  if (!st.contiguous) { for (let i = 0; i < w * h; i++) if (eq(i * 4)) plotRaw(a, i % w, (i / w) | 0, c); return; }
+  if (!st.contiguous) { for (let i = 0; i < w * h; i++) if (eq(i * 4)) plotRaw(a, i % w, (i / w) | 0, c); return true; }
   const stack = [x, y], seen = new Uint8Array(w * h);
   while (stack.length) { const yy = stack.pop(), xx = stack.pop(); if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue; const i = yy * w + xx; if (seen[i] || !eq(i * 4)) continue; seen[i] = 1; plotRaw(a, xx, yy, c); stack.push(xx + 1, yy, xx - 1, yy, xx, yy + 1, xx, yy - 1); }
+  return true;
 }
 const drawColor = () => st.tool === 'eraser' ? [0, 0, 0, 0] : st.color;
 const layerBlocked = () => { const L = doc.layers[cur.layer]; if (L.locked) { toast('A camada está travada'); return true; } if (!L.visible) { toast('A camada está oculta'); return true; } return false; };
@@ -66,11 +67,12 @@ const layerBlocked = () => { const L = doc.layers[cur.layer]; if (L.locked) { to
 let stroke = null; const strokeActive = () => !!(stroke && !stroke.noop && !stroke.pan);
 function beginStroke(x, y) {
   const t = st.tool;
-  if (layerBlocked() && t !== 'select') { stroke = { noop: true }; return; }
-  const before = snap(); pushHist(); stroke = { x0: x, y0: y, lx: x, ly: y, base: new Uint8ClampedArray(px()), before, changed: false, path: [] };
-  if (t === 'fill') { if (inside(x, y)) floodFill(x, y, drawColor()); stroke.changed = true; endStroke(); stroke = null; return; }
+  // seleção não mexe nos pixels: não entra no histórico (antes apagava a pilha de refazer) e funciona em camada travada/oculta
+  if (t === 'select') { stroke = { x0: x, y0: y, select: true, sel0: selRect }; selRect = null; render(); return; }
+  if (layerBlocked()) { stroke = { noop: true }; return; }
+  const fut = pushHist(); stroke = { x0: x, y0: y, lx: x, ly: y, base: new Uint8ClampedArray(px()), before: hist[hist.length - 1], fut, changed: false, path: [] };
+  if (t === 'fill') { stroke.changed = inside(x, y) && floodFill(x, y, drawColor()); endStroke(); stroke = null; return; }
   if (t === 'pencil' || t === 'eraser') { paintPoint(x, y); render(); return; }
-  if (t === 'select') { selRect = null; render(); return; }
   if (t === 'move') { stroke.sel = selRect ? { ...selRect } : null; return; }
   moveStroke(x, y);
 }
@@ -92,7 +94,7 @@ function moveStroke(x, y) {
     const base = t === 'line' ? linePts(stroke.x0, stroke.y0, x, y) : t === 'rect' ? rectPts(stroke.x0, stroke.y0, x, y, st.fillShape) : ellipsePts(stroke.x0, stroke.y0, x, y, st.fillShape);
     overlay = new Map(); const c = drawColor(); for (const [a, b] of base) for (const [p, q] of stampPoints(a, b)) if (inside(p, q)) overlay.set(q * doc.w + p, c);
     stroke.changed = true; render(); return; }
-  if (t === 'select') { const a = clamp(Math.min(stroke.x0, x), 0, doc.w - 1), b = clamp(Math.min(stroke.y0, y), 0, doc.h - 1); selRect = { x: a, y: b, w: clamp(Math.max(stroke.x0, x), 0, doc.w - 1) - a + 1, h: clamp(Math.max(stroke.y0, y), 0, doc.h - 1) - b + 1 }; render(); return; }
+  if (stroke.select) { const a = clamp(Math.min(stroke.x0, x), 0, doc.w - 1), b = clamp(Math.min(stroke.y0, y), 0, doc.h - 1); selRect = { x: a, y: b, w: clamp(Math.max(stroke.x0, x), 0, doc.w - 1) - a + 1, h: clamp(Math.max(stroke.y0, y), 0, doc.h - 1) - b + 1 }; render(); return; }
   if (t === 'move') { shiftPixels(stroke.base, stroke.sel, x - stroke.x0, y - stroke.y0); stroke.changed = x !== stroke.x0 || y !== stroke.y0; render(); }
 }
 function shiftPixels(src, sel, dx, dy) {
@@ -105,11 +107,15 @@ function shiftPixels(src, sel, dx, dy) {
 function endStroke() {
   if (!stroke || stroke.noop) { stroke = null; return; }
   if (overlay) { const a = px(); for (const [i, c] of overlay) { const o = i * 4; a[o] = c[0]; a[o + 1] = c[1]; a[o + 2] = c[2]; a[o + 3] = c[3]; } overlay = null; }
-  if (st.tool === 'select') { hist.pop(); if (selRect && selRect.w * selRect.h <= 1) selRect = null; stroke = null; render(); updateBar(); return; }
-  if (!stroke.changed) hist.pop();
+  if (stroke.select) { if (selRect && selRect.w * selRect.h <= 1) selRect = null; stroke = null; render(); updateBar(); return; }
+  if (!stroke.changed) { hist.pop(); future.push(...stroke.fut); stroke = null; render(); updateBar(); return; } // nada mudou: o histórico fica como estava
   stroke = null; refreshAfterEdit();
 }
-function abortStroke() { if (stroke && stroke.before) { restore(stroke.before); hist.pop(); overlay = null; } stroke = null; fullRefresh(); }
+function abortStroke() {
+  if (stroke && stroke.select) selRect = stroke.sel0;
+  else if (stroke && stroke.before) { restore(stroke.before); hist.pop(); future.push(...stroke.fut); overlay = null; }
+  stroke = null; fullRefresh();
+}
 function refreshAfterEdit() { render(); renderLayers(); renderFrames(); renderFaixa(); updateBar(); markDirty(); }
 
 /* ======================= entrada: Apple Pencil, toque, mouse ======================= */

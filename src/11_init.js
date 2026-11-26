@@ -26,6 +26,6 @@ window.addEventListener('pagehide', flushSaves); window.addEventListener('before
   buildRail(); buildSide(); setTool('pencil'); renderSubtitle(); updateBar(); setStatus('saved');
   initTilemap();
   let lastW = 0; new ResizeObserver(() => { if (!viewOn('editor')) return; const w = area.clientWidth; resizeCanvas(); if (lastW && Math.abs(w - lastW) > 60) fit(); lastW = w; }).observe(area);
-  showView(LS.get('view', 'editor') === 'gerar' ? 'editor' : LS.get('view', 'editor'));
+  const v0 = LS.get('view', 'editor'); showView(['editor', 'tile', 'snap', 'normal'].includes(v0) ? v0 : 'editor'); // 'gerar' (aba de IA da 1.1) e lixo caem no editor
   requestAnimationFrame(() => { resizeCanvas(); fit(); });
 })();

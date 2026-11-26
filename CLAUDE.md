@@ -1,6 +1,6 @@
 # Snapforge — guia do projeto (para o Claude Code)
 
-Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.2.0**.
+Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.2.1**.
 
 Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad com Apple Pencil** e também no Windows (Chrome/Firefox). Interface 100% em **português do Brasil**.
 
@@ -22,8 +22,8 @@ Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad c
 
 ```
 CLAUDE.md            este guia
-README.md            instruções de uso/instalação (copiado para dist/pwa)
-package.json         scripts de build e teste
+README.md            instruções de uso/instalação (sem número de versão; o dist/pwa/README.md é gerado pelo build.js com a versão)
+package.json         scripts de build e teste (package-lock.json fixa as versões de Playwright/pngjs)
 build.js             gera dist/snapforge.html e dist/pwa/
 icons/               PNGs do ícone (versionados; regenerar com `npm run build:icons`)
 src/
@@ -31,7 +31,7 @@ src/
   engines.js         Pixel Snapper e Sprite Normals (porte JS dos projetos Rust da Sprite Fusion)
   00_base.js … 11_init.js   o app, concatenado em ordem alfabética
 tests/
-  e2e.js             79 verificações no navegador (Playwright + Chromium)
+  e2e.js             101 verificações no navegador (Playwright + Chromium)
   engines-vs-rust.js compara os motores JS com os binários Rust originais
   snapper-structure.js  idem, checando grade e cor-base célula a célula
   fixtures/          imagens de teste + make_fixtures.js que as gera
@@ -48,6 +48,8 @@ npx playwright install chromium
 npm run build               # = node build.js
 npm test                    # build + tests/e2e.js
 ```
+
+Se o Chromium já estiver instalado em outro lugar (ex.: ambiente do Claude Code na nuvem), aponte `PW_CHROMIUM=/caminho/do/chrome` em vez de rodar `playwright install`. O teste confere que `#ver` bate com o `version` do `package.json`.
 
 `build.js`:
 1. Concatena `src/*.js` (exceto `engines.js`) **em ordem alfabética do nome do arquivo** e injeta em `/*@JS*/` dentro de `src/shell.html`. Por isso os arquivos têm prefixo numérico — **a ordem importa** (veja "Módulos").
@@ -131,7 +133,7 @@ Para reverificar: clone os dois repositórios numa pasta `sf-repos/` ao lado do 
 
 ## Testes
 
-`npm test` roda o build e `tests/e2e.js` (Chromium, viewport de iPad 1180×820 com toque). Cobre: desenho com mouse, **Pencil e toque via CDP** (`Input.dispatchMouseEvent` com `pointerType: 'pen'` e `Input.dispatchTouchEvent`), gestos, lupa, camadas (travar, arrastar), seleção/copiar/colar/setas, seletor de cor, seletor de paleta, botões de tamanho, modo foco + faixa, salvar/recarregar, Snapper (card de carregamento, lupa sincronizada, tamanho final, prompt), Normal Map, Tilemap inteiro (carimbo, balde, autotile, export `.tmj` validado), ausência de chamadas de IA, e **"sem rolar a página" em 4 abas × 3 tamanhos de tela**. Capturas vão para `tests/screenshots/` (ignorado no git).
+`npm test` roda o build e `tests/e2e.js` (Chromium, viewport de iPad 1180×820 com toque). Cobre: desenho com mouse, **Pencil e toque via CDP** (`Input.dispatchMouseEvent` com `pointerType: 'pen'` e `Input.dispatchTouchEvent`), gestos, lupa, camadas (travar, arrastar), seleção/copiar/colar/setas, seletor de cor, seletor de paleta, botões de tamanho, modo foco + faixa, salvar/recarregar, Snapper (card de carregamento, lupa sincronizada, tamanho final, prompt), Normal Map, Tilemap inteiro (carimbo, balde, autotile, export `.tmj` validado), ausência de chamadas de IA, e **"sem rolar a página" em 4 abas × 3 tamanhos de tela** (mais: barra do palco numa linha só) e um bloco de regressão da 1.2.1 (camada vinda do Snapper, histórico/seleção, balde do tilemap no toque, tileset só `data:image`, desfazer de tileset, modal de novo mapa). Capturas vão para `tests/screenshots/` (ignorado no git).
 
 Não coberto: **Safari/WebKit de verdade** (o comportamento do iPad foi simulado no Chromium). Se instalar o WebKit do Playwright (`npx playwright install webkit`), vale rodar o e2e nele também.
 
@@ -141,6 +143,7 @@ Igual ao app Ponto Cruz (repo `RenatoBelmont/ponto-cruz`): publicar o **conteúd
 
 ## Histórico
 
+- **1.2.1** — auditoria geral. **Correções:** "Adicionar como camada" no Snapper e no Normal Map quebrava (`addImageAsLayer` não existia); "Novo mapa" ignorava o tamanho escolhido (chips sem ação); fazer uma seleção apagava a pilha de refazer e avisava "camada travada"; balde/traço sem efeito criava passo de desfazer vazio e apagava o refazer; abrir JSON inválido comia um passo do desfazer; seletor de paleta se acumulava na memória a cada troca de cor; balde do tilemap no toque preenchia ao encostar (agora só ao soltar, como no editor); tileset de `.tilemap.json` aceitava qualquer URL (agora só `data:image`, sem rede) e uma imagem quebrada travava o painel; trocar tileset/tamanho do tile e abrir mapa agora entram no desfazer sem misturar estados; mesclar camadas respeita a trava; projeto aberto volta com a sua paleta; histórico do editor também limitado por memória (~160 MB). **Design:** barra do palco sempre numa linha (rótulos somem quando aperta; em retrato saem os botões ± de zoom), ícones distintos para Abrir (pasta) e Salvar (disquete), Snapper/Normal em retrato com os cards de ajuste lado a lado (o botão Aplicar aparece sem rolar), anel de foco para teclado, alvos de toque maiores (Recentes, cores do seletor, apagar paleta), `prefers-reduced-motion`, títulos nos botões de zoom do tilemap. Removido código morto (`renderBar`, `trimAlpha`, `b64ToImage`, `fillPalSelect`, `st.panel`).
 - **1.2.0** — volta ao layout da v1 (cabeçalho numa linha, painel direito em cards, tela única sem rolagem); **IA removida** (Gemini/Groq); aba **Tilemap**; **lupa** sincronizada no Snapper e Normal Map; **card de carregamento** central; seletor de paleta **com prévia**; botões de tamanho 16–128 (canvas, Snapper, mapa, prompt); salvamento imediato ao sair do app; correções: botões de modal sem estilo, seleção múltipla no tileset, carimbo de bloco, regras de autotile ao lado do tileset.
 - **1.1.0** — visual do Waypoint aplicado; recursos de iPad do Ponto Cruz (Só Pencil, gestos, lupa, balde no soltar, faixa de cores); pixel perfeito, copiar/colar seleção, camadas com trava/arrastar/mesclar, seletor de cor com toque, PWA; IA via Gemini + Groq (removida na 1.2.0).
 - **1.0.1** — renomeado de Pixelaria para **Snapforge** (o nome Pixelaria já existia e é parecido com o Pixelorama); ícone de bigorna; migração das chaves `pixelaria.*`.

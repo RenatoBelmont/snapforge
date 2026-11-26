@@ -20,18 +20,19 @@ function addTLayer(auto, name, silent) {
   tm.layers.splice(ts.layer + (tm.layers.length ? 1 : 0), 0, L); ts.layer = tm.layers.indexOf(L); mapDirty = true;
   if (!silent) { renderTSide(); tRender(); tSave(); }
 }
-const tSnap = () => ({ mw: tm.mw, mh: tm.mh, tw: tm.tw, th: tm.th, layer: ts.layer, layers: tm.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })) });
-const tRestore = (s) => { Object.assign(tm, { mw: s.mw, mh: s.mh, tw: s.tw, th: s.th }); tm.layers = s.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })); ts.layer = clamp(s.layer, 0, tm.layers.length - 1); mapDirty = true; };
+const tSnap = () => ({ name: tm.name, tileset: tm.tileset, mw: tm.mw, mh: tm.mh, tw: tm.tw, th: tm.th, layer: ts.layer, layers: tm.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })) });
+const tRestore = (s) => { const reload = s.tileset !== tm.tileset || s.tw !== tm.tw || s.th !== tm.th; Object.assign(tm, { name: s.name, tileset: s.tileset, mw: s.mw, mh: s.mh, tw: s.tw, th: s.th }); if (reload) loadTsImage(() => { renderTSide(); tRender(); }); tm.layers = s.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })); ts.layer = clamp(s.layer, 0, tm.layers.length - 1); mapDirty = true; };
 function tPush() { tHist.push(tSnap()); if (tHist.length > 60) tHist.shift(); tFuture.length = 0; }
 function tUndo() { if (!tHist.length) return toast('Nada para desfazer'); tFuture.push(tSnap()); tRestore(tHist.pop()); renderTSide(); tRender(); tSave(); }
 function tRedo() { if (!tFuture.length) return toast('Nada para refazer'); tHist.push(tSnap()); tRestore(tFuture.pop()); renderTSide(); tRender(); tSave(); }
 
 /* ---------- tileset ---------- */
-function setTileset(img, name) {
-  const c = imgToCanvas(img); tm.tileset = { name: name || 'tileset', url: c.toDataURL('image/png'), w: img.width, h: img.height };
-  loadTsImage(() => { ts.sel = { x: 0, y: 0, w: 1, h: 1 }; renderTSide(); mapDirty = true; tRender(); tSave(); toast(`Tileset ${img.width}×${img.height} · ${tsCols * tsRows} tiles de ${tm.tw}×${tm.th}`); });
+function setTileset(img, name, tile) {
+  tPush(); if (tile) tm.tw = tm.th = tile; const c = imgToCanvas(img); tm.tileset = { name: name || 'tileset', url: c.toDataURL('image/png'), w: img.width, h: img.height };
+  loadTsImage(() => { ts.sel = { x: 0, y: 0, w: 1, h: 1 }; renderTSide(); mapDirty = true; tRender(); tSave(); toast(`Tileset ${img.width}×${img.height} · ${tsCols * tsRows} tiles de ${tm.tw}×${tm.th} (⌘Z desfaz)`); });
 }
-function loadTsImage(cb) { if (!tm.tileset) { tsImg = null; tsCols = tsRows = 0; cb && cb(); return; } const im = new Image(); im.onload = () => { tsImg = im; tsCols = Math.max(1, Math.floor(im.width / tm.tw)); tsRows = Math.max(1, Math.floor(im.height / tm.th)); mapDirty = true; cb && cb(); }; im.src = tm.tileset.url; }
+function loadTsImage(cb) { if (!tm.tileset) { tsImg = null; tsCols = tsRows = 0; cb && cb(); return; } const im = new Image(); im.onload = () => { tsImg = im; tsCols = Math.max(1, Math.floor(im.width / tm.tw)); tsRows = Math.max(1, Math.floor(im.height / tm.th)); mapDirty = true; cb && cb(); };
+  im.onerror = () => { tm.tileset = null; tsImg = null; tsCols = tsRows = 0; mapDirty = true; toast('Não consegui abrir a imagem do tileset'); cb && cb(); }; im.src = tm.tileset.url; }
 function demoTileset() { // 8 tiles de 16 px: grama, terra, água, pedra, areia, madeira, flor, parede
   const T = 16, cols = ['#38b764', '#a0663a', '#3b5dc9', '#94b0c2', '#ffcd75', '#b86f50', '#38b764', '#566c86'], c = document.createElement('canvas'); c.width = T * 8; c.height = T; const x = c.getContext('2d');
   let s = 3; const rnd = () => (s = (s * 1103515245 + 12345) % 2147483648) / 2147483648;
@@ -39,7 +40,7 @@ function demoTileset() { // 8 tiles de 16 px: grama, terra, água, pedra, areia,
     if (i === 6) { x.fillStyle = '#ef7d57'; x.fillRect(i * T + 5, 5, 2, 2); x.fillRect(i * T + 10, 9, 2, 2); x.fillStyle = '#ffcd75'; x.fillRect(i * T + 7, 11, 2, 2); }
     if (i === 7) { x.fillStyle = '#333c57'; for (let yy = 3; yy < T; yy += 5) x.fillRect(i * T, yy, T, 1); for (let yy = 0; yy < T; yy += 5) x.fillRect(i * T + ((yy / 5) % 2 ? 4 : 11), yy, 1, 4); }
     x.strokeStyle = 'rgba(0,0,0,.25)'; x.strokeRect(i * T + .5, .5, T - 1, T - 1); });
-  tm.tw = tm.th = 16; return { width: c.width, height: c.height, data: x.getImageData(0, 0, c.width, c.height).data };
+  return { width: c.width, height: c.height, data: x.getImageData(0, 0, c.width, c.height).data };
 }
 const tileAt = (L, i) => { if (!L.auto) return L.data[i]; if (!L.cells[i]) return -1; const x = i % tm.mw, y = (i / tm.mw) | 0, on = (xx, yy) => xx >= 0 && yy >= 0 && xx < tm.mw && yy < tm.mh && L.cells[yy * tm.mw + xx];
   const m = (on(x, y - 1) ? 1 : 0) | (on(x + 1, y) ? 2 : 0) | (on(x, y + 1) ? 4 : 0) | (on(x - 1, y) ? 8 : 0); if (L.rules[m] >= 0) return L.rules[m]; if (L.rules[15] >= 0) return L.rules[15]; return L.rules.find(r => r >= 0) ?? -1; };
@@ -120,23 +121,25 @@ function tEnd() {
 function tAbort() { if (tStroke && !tStroke.noop && tHist.length) { tRestore(tHist.pop()); } tStroke = null; tRect = null; tRender(); }
 
 /* ---------- entrada (mesmos gestos do editor) ---------- */
-const TT_T = new Map(); let tPin = null, tGest = null, tPenDown = false, tPan = null;
+const TT_T = new Map(); let tPin = null, tGest = null, tPenDown = false, tPan = null, tFillPend = null;
 const tMeio = () => { const p = [...TT_T.values()]; return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2, d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) || 1 }; };
 tcv.addEventListener('pointerdown', (e) => {
   try { tcv.setPointerCapture(e.pointerId); } catch {}
   if (e.pointerType === 'pen') { tPenDown = true; tPin = null; tPan = null; if (!st.penSeen && !st.penOnly) setPenOnly(true, true); }
   if (e.pointerType === 'touch') { TT_T.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
-    if (TT_T.size > 1) { if (!tGest) tGest = { t0: performance.now(), max: 0, moved: false }; tGest.max = Math.max(tGest.max, TT_T.size); } else tGest = null;
+    if (TT_T.size > 1) { tFillPend = null; if (!tGest) tGest = { t0: performance.now(), max: 0, moved: false }; tGest.max = Math.max(tGest.max, TT_T.size); } else tGest = null;
     if (TT_T.size === 2 && !tPenDown) { if (tStroke && !tStroke.noop) { tAbort(); if (tGest) tGest.moved = true; } tStroke = null; tPan = null; const m = tMeio(), r = tcv.getBoundingClientRect(); tPin = { d0: m.d, z0: ts.zoom, mx: m.x - r.left, my: m.y - r.top, ox: ts.ox, oy: ts.oy }; return; }
     if (TT_T.size > 2) return; }
   if (tPin || (tPenDown && e.pointerType === 'touch')) return;
   if (ts.tool === 'hand' || e.button === 1 || e.button === 2 || panMode || (e.pointerType === 'touch' && st.penOnly)) { tPan = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: ts.ox, oy: ts.oy }; return; }
-  const [x, y] = tCell(e.clientX, e.clientY); tBegin(x, y, e.pointerId);
+  const [x, y] = tCell(e.clientX, e.clientY);
+  if (ts.tool === 'fill' && e.pointerType === 'touch') { tFillPend = { id: e.pointerId, x, y }; return; }
+  tBegin(x, y, e.pointerId);
 });
 tcv.addEventListener('pointermove', (e) => {
   const [x, y] = tCell(e.clientX, e.clientY); $('#tPos').textContent = tIn(x, y) ? `${x}, ${y}` : '—';
   if ((e.pointerType === 'pen' || e.pointerType === 'mouse') && !e.buttons) { const h = tIn(x, y) ? [x, y] : null; if (String(h) !== String(tHover)) { tHover = h; tRender(); } }
-  if (TT_T.has(e.pointerId)) { const t = TT_T.get(e.pointerId); t.x = e.clientX; t.y = e.clientY; if (tGest && Math.hypot(t.x - t.x0, t.y - t.y0) > 14) tGest.moved = true; }
+  if (TT_T.has(e.pointerId)) { const t = TT_T.get(e.pointerId); t.x = e.clientX; t.y = e.clientY; const d = Math.hypot(t.x - t.x0, t.y - t.y0); if (tGest && d > 14) tGest.moved = true; if (tFillPend && tFillPend.id === e.pointerId && d > 9) tFillPend = null; }
   if (tPin && TT_T.size >= 2) { const m = tMeio(), r = tcv.getBoundingClientRect(), nz = clamp(tPin.z0 * m.d / tPin.d0, .25, 32), k = nz / tPin.z0; ts.zoom = nz; ts.ox = (m.x - r.left) - (tPin.mx - tPin.ox) * k; ts.oy = (m.y - r.top) - (tPin.my - tPin.oy) * k; tRender(); return; }
   if (tPan && tPan.id === e.pointerId) { ts.ox = tPan.ox + e.clientX - tPan.sx; ts.oy = tPan.oy + e.clientY - tPan.sy; tRender(); return; }
   if (tStroke && tStroke.id === e.pointerId) tMove(x, y);
@@ -147,6 +150,7 @@ function tUp(e) {
   const was = TT_T.delete(e.pointerId);
   if (was && TT_T.size === 0 && tGest) { const g = tGest; tGest = null; tPin = null; tPan = null; if (!g.moved && performance.now() - g.t0 < 450 && e.type === 'pointerup') { if (g.max === 2) { tUndo(); toast('Desfeito (dois dedos)', 1200); } else if (g.max >= 3) { tRedo(); toast('Refeito (três dedos)', 1200); } } return; }
   if (was && tPin && TT_T.size < 2) { tPin = null; return; }
+  if (tFillPend && tFillPend.id === e.pointerId) { const f = tFillPend; tFillPend = null; if (e.type === 'pointerup' && !tGest && !tPin) tBegin(f.x, f.y, e.pointerId); return; }
   if (tPan && tPan.id === e.pointerId) { tPan = null; return; }
   if (tStroke && tStroke.id === e.pointerId) { e.type === 'pointercancel' ? tAbort() : tEnd(); }
 }
@@ -217,7 +221,7 @@ function renderTileset() {
 const renderTSideHint = () => { const h = $('#tb-tileset .hint'); if (h) h.textContent = `${tsCols * tsRows} tiles · toque num tile ou arraste para selecionar vários (vira um carimbo). Seleção: ${ts.sel.w}×${ts.sel.h}.`; renderTileset(); };
 $('#tSide').addEventListener('click', async (e) => {
   const tg = e.target.closest('[data-ttoggle]'); if (tg && !e.target.closest('.acts')) { const id = tg.dataset.ttoggle, card = tg.parentElement; card.classList.toggle('closed'); tCardOpen[id] = !card.classList.contains('closed'); LS.set('tcards', tCardOpen); if (id === 'tileset') renderTileset(); return; }
-  const sz = e.target.closest('[data-ts]'); if (sz) { const n = +sz.dataset.ts; tm.tw = tm.th = n; loadTsImage(() => { ts.sel = { x: 0, y: 0, w: 1, h: 1 }; renderTSide(); tFit(); tSave(); }); return; }
+  const sz = e.target.closest('[data-ts]'); if (sz) { const n = +sz.dataset.ts; if (n === tm.tw && n === tm.th) return; tPush(); tm.tw = tm.th = n; loadTsImage(() => { ts.sel = { x: 0, y: 0, w: 1, h: 1 }; renderTSide(); tFit(); tSave(); }); return; }
   const ms = e.target.closest('[data-ms]'); if (ms) { const n = +ms.dataset.ms; tResizeMap(n, n); return; }
   const sl = e.target.closest('[data-slot]'); if (sl) { ts.slot = +sl.dataset.slot; renderAuto(); toast('Agora toque no tile do tileset para essa combinação'); return; }
   const vis = e.target.closest('[data-tvis]'); if (vis) { tPush(); const L = tm.layers[+vis.dataset.tvis]; L.visible = !L.visible; mapDirty = true; renderTLayers(); tRender(); tSave(); return; }
@@ -225,7 +229,7 @@ $('#tSide').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-tp]'); if (!b) return; const k = b.dataset.tp, L = tm.layers[ts.layer];
   if (k === 'tsImport') { const f = await pickFile('image/png,image/gif,image/webp,image/jpeg'); if (f) { try { setTileset(await withBusy('Abrindo tileset…', () => fileToImage(f)), f.name.replace(/\.[^.]+$/, '')); } catch (er) { toast(er.message); } } }
   else if (k === 'tsEditor') { setTileset(doc.frames.length > 1 ? sheetImage() : composite(cur.frame), doc.name); }
-  else if (k === 'tsDemo') setTileset(demoTileset(), 'exemplo');
+  else if (k === 'tsDemo') setTileset(demoTileset(), 'exemplo', 16);
   else if (k === 'tResize') tResizeMap(clamp(parseInt($('#tMw').value) || tm.mw, 1, 256), clamp(parseInt($('#tMh').value) || tm.mh, 1, 256));
   else if (k === 'tAdd') addTLayer(false); else if (k === 'tAddAuto') { addTLayer(true); toast('Camada de autotile: defina as regras no card abaixo'); }
   else if (k === 'tDel') { if (tm.layers.length <= 1) return toast('Precisa ter ao menos uma camada'); tPush(); tm.layers.splice(ts.layer, 1); ts.layer = Math.max(0, ts.layer - 1); mapDirty = true; renderTSide(); tRender(); tSave(); }
@@ -244,7 +248,7 @@ const tSerialize = () => ({ app: 'snapforge-tilemap', schema: 1, version: VERSIO
 function tDeserialize(o) {
   if (!o || o.app !== 'snapforge-tilemap' || !Array.isArray(o.layers)) throw new Error('Arquivo não é um mapa do Snapforge');
   const mw = clamp(o.mw | 0, 1, 256), mh = clamp(o.mh | 0, 1, 256), n = mw * mh;
-  tm = { name: String(o.name || 'Mapa'), tw: clamp(o.tw | 0 || 16, 1, 256), th: clamp(o.th | 0 || 16, 1, 256), mw, mh, tileset: o.tileset && o.tileset.url ? o.tileset : null,
+  tm = { name: String(o.name || 'Mapa'), tw: clamp(o.tw | 0 || 16, 1, 256), th: clamp(o.th | 0 || 16, 1, 256), mw, mh, tileset: o.tileset && typeof o.tileset.url === 'string' && /^data:image\/(png|gif|webp|jpeg);base64,/.test(o.tileset.url) ? { name: String(o.tileset.name || 'tileset'), url: o.tileset.url, w: o.tileset.w | 0, h: o.tileset.h | 0 } : null,
     layers: o.layers.map((L, i) => ({ name: String(L.name || 'Camada ' + (i + 1)), visible: L.visible !== false, auto: !!L.auto, data: Int32Array.from((L.data || []).slice(0, n).concat(new Array(Math.max(0, n - (L.data || []).length)).fill(-1))),
       cells: L.auto ? Uint8Array.from((L.cells || []).slice(0, n).concat(new Array(Math.max(0, n - (L.cells || []).length)).fill(0))) : undefined, rules: L.auto ? (Array.isArray(L.rules) && L.rules.length === 16 ? L.rules.map(r => r | 0) : new Array(16).fill(-1)) : undefined })) };
   if (!tm.layers.length) addTLayer(false, 'Chão', true); ts.layer = 0; mapDirty = true;
@@ -265,8 +269,8 @@ function zipStore(files) { const enc = new TextEncoder(), parts = [], central = 
 const tSlug = () => (tm.name || 'mapa').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'mapa';
 async function tFile(v) {
   if (v === 'save') saveBlob(new Blob([JSON.stringify(tSerialize())], { type: 'application/json' }), `${tSlug()}.tilemap.json`);
-  else if (v === 'open') { const f = await pickFile('.json,application/json'); if (!f) return; try { const o = JSON.parse(await f.text()); tPush(); tDeserialize(o); loadTsImage(() => { renderTSide(); tFit(); tSave(); }); toast('Mapa aberto'); } catch (er) { toast(er.message || 'Arquivo inválido'); } }
-  else if (v === 'new') { const f = await modal('Novo mapa', `<label class="lbl">Nome<input class="input-field" id="tmN" value="Mapa"></label><div class="lbl">Tamanho (em tiles)<div class="chips" id="tmS">${SIZES.map(s => `<button data-n="${s}" class="${s === 32 ? 'on' : ''}">${s}</button>`).join('')}</div></div><p class="hint">O tileset atual é mantido.</p>`, [['Cancelar', null], ['Criar', '__form', 'primary']]);
+  else if (v === 'open') { const f = await pickFile('.json,application/json'); if (!f) return; try { const o = JSON.parse(await f.text()), back = tSnap(), hist0 = tHist.slice(); tDeserialize(o); tHist.length = 0; tHist.push(...hist0, back); tFuture.length = 0; loadTsImage(() => { renderTSide(); tFit(); tSave(); }); toast('Mapa aberto (⌘Z volta ao anterior)'); } catch (er) { toast(er.message || 'Arquivo inválido'); } }
+  else if (v === 'new') { const f = await modal('Novo mapa', `<label class="lbl">Nome<input class="input-field" id="tmN" value="Mapa"></label><div class="lbl">Tamanho (em tiles)<div class="chips" id="tmS" data-radio>${SIZES.map(s => `<button data-n="${s}" class="${s === 32 ? 'on' : ''}">${s}</button>`).join('')}</div></div><p class="hint">O tileset atual é mantido.</p>`, [['Cancelar', null], ['Criar', '__form', 'primary']]);
     if (!f) return; const n = +($('#tmS .on', f)?.dataset.n || 32); tPush(); const back = tHist.slice(); newMap(n, n, tm.tw, tm.th, $('#tmN', f).value.trim()); tHist.push(...back); renderTSide(); tFit(); tSave(); }
   else if (v === 'export') {
     const f = await modal('Exportar mapa', `<div class="note"><strong>Tiled (.tmj)</strong> é o formato aberto que o Godot (plugin YATI) e o Unity (SuperTiled2Unity) importam. Vem num .zip com o tileset. Camadas de autotile saem já resolvidas em tiles.</div>
@@ -289,7 +293,7 @@ async function tFile(v) {
 $('#v-tile .stage-bar').addEventListener('click', (e) => { const b = e.target.closest('[data-tf]'); if (b) tFile(b.dataset.tf); });
 function initTilemap() {
   try { const o = LS.get('tilemap', null); if (o) tDeserialize(o); else newMap(32, 32, 16, 16); } catch { newMap(32, 32, 16, 16); }
-  if (!tm.tileset) { const img = demoTileset(); tm.tileset = { name: 'exemplo', url: imgToCanvas(img).toDataURL('image/png'), w: img.width, h: img.height }; }
+  if (!tm.tileset) { const img = demoTileset(); tm.tw = tm.th = 16; tm.tileset = { name: 'exemplo', url: imgToCanvas(img).toDataURL('image/png'), w: img.width, h: img.height }; }
   loadTsImage(() => { renderTSide(); tRender(); });
   let lastTW = 0; new ResizeObserver(() => { if (!viewOn('tile')) return; const w = tArea.clientWidth; tResize(); if (lastTW && Math.abs(w - lastTW) > 60) tFit(); lastTW = w; }).observe(tArea);
 }

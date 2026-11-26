@@ -9,7 +9,6 @@ const FAVORITES = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c5
 let userPals = LS.get('userPals', {}), palName = LS.get('palName', 'Sweetie 16');
 const allPals = () => Object.assign({}, PALETTES, userPals);
 const palList = (n) => (allPals()[n] || PALETTES['Sweetie 16']).split(',').filter(Boolean).map(h => '#' + h.toLowerCase());
-function fillPalSelect(sel, withAuto) { sel.innerHTML = (withAuto ? '<option value="">Automática (k-means)</option>' : '') + Object.keys(allPals()).map(n => `<option>${esc(n)}</option>`).join('') + (withAuto ? '<option value="__doc">Paleta atual do editor</option>' : ''); }
 let recent = LS.get('recentColors', []);
 function pushRecent(hex) { hex = hex.toLowerCase(); recent = [hex, ...recent.filter(c => c !== hex)].slice(0, 10); LS.set('recentColors', recent); }
 

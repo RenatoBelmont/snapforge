@@ -28,7 +28,9 @@ function palettePicker(host, opts) {
     });
   });
   draw();
-  const api = { get: () => value, set: (v) => { value = v; draw(); }, redraw: draw }; ppPickers.push(api); return api;
+  const api = { host, get: () => value, set: (v) => { value = v; draw(); }, redraw: draw }; prunePickers(); ppPickers.push(api); return api;
 }
 const ppPickers = [];
-function refreshAllPalPickers() { ppPickers.forEach(p => p.redraw()); }
+// renderColor recria o seletor a cada troca de cor: descarta os que saíram da tela para a lista não crescer sem limite
+function prunePickers() { for (let i = ppPickers.length; i--;) if (!ppPickers[i].host.isConnected) ppPickers.splice(i, 1); }
+function refreshAllPalPickers() { prunePickers(); ppPickers.forEach(p => p.redraw()); }

@@ -14,7 +14,6 @@ $('#rail').addEventListener('click', (e) => {
   if (k === 'flipH') transformArea('fh'); else if (k === 'flipV') transformArea('fv'); else if (k === 'rotate') transformArea('rot'); else if (k === 'outline') autoOutline(); else if (k === 'clear') clearArea();
 });
 function setTool(t) { if (['line', 'rect', 'ellipse'].includes(t)) st.shape = t; st.tool = t; $$('#rail [data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t)); renderBrush(); updateBar(); render(); }
-const renderBar = () => updateBar();
 function updateBar() {
   $('#undoBtn').disabled = !hist.length; $('#redoBtn').disabled = !future.length;
   $('#penBtn').classList.toggle('on', st.penOnly); $('#penTxt').textContent = st.penOnly ? 'Só Pencil' : 'Dedo pinta';
@@ -109,7 +108,7 @@ $('#side').addEventListener('click', async (e) => {
     if (!f) return; const list = ($('#phT', f).value.match(/[0-9a-f]{6}/gi) || []).map(h => '#' + h.toLowerCase()); if (!list.length) return toast('Nenhuma cor hex encontrada'); savePal($('#phN', f).value.trim() || 'Minha paleta', [...new Set(list)].slice(0, 256)); toast(list.length + ' cores salvas'); }
   else if (k === 'layAdd') addLayer(); else if (k === 'layDup') dupLayer();
   else if (k === 'layDel') { if (doc.layers.length <= 1) return toast('Precisa ter ao menos uma camada'); pushHist(); doc.layers.splice(cur.layer, 1); doc.frames.forEach(fr => fr.splice(cur.layer, 1)); cur.layer = Math.max(0, cur.layer - 1); fullRefresh(); }
-  else if (k === 'layMerge') { if (cur.layer === 0) return toast('Não há camada abaixo'); pushHist(); const i = cur.layer, L = doc.layers[i];
+  else if (k === 'layMerge') { if (cur.layer === 0) return toast('Não há camada abaixo'); if (doc.layers[cur.layer].locked || doc.layers[cur.layer - 1].locked) return toast('Destrave as duas camadas para mesclar'); pushHist(); const i = cur.layer, L = doc.layers[i];
     doc.frames.forEach(fr => { const top = fr[i], bot = fr[i - 1]; for (let o = 0; o < top.length; o += 4) { const sa = top[o + 3] / 255 * L.opacity; if (sa <= 0) continue; const da = bot[o + 3] / 255, oa = sa + da * (1 - sa); for (let c = 0; c < 3; c++) bot[o + c] = (top[o + c] * sa + bot[o + c] * da * (1 - sa)) / oa; bot[o + 3] = oa * 255; } fr.splice(i, 1); });
     doc.layers.splice(i, 1); cur.layer = i - 1; fullRefresh(); }
   else if (k === 'layUp') moveLayer(cur.layer, cur.layer + 1); else if (k === 'layDown') moveLayer(cur.layer, cur.layer - 1);

@@ -10,12 +10,13 @@ function deserialize(o) {
   if (!frames.length || !o.layers.length) throw new Error('Projeto vazio');
   doc = { name: String(o.name || 'Sem título'), w, h, fps: clamp(o.fps | 0 || 8, 1, 60), layers: o.layers.map((l, i) => ({ name: String(l.name || 'Camada ' + (i + 1)), visible: l.visible !== false, opacity: l.opacity === 0 ? 0 : clamp(+l.opacity || 1, 0, 1), locked: !!l.locked })), frames };
   cur = { frame: clamp(o.cur?.frame | 0, 0, frames.length - 1), layer: clamp(o.cur?.layer | 0, 0, o.layers.length - 1) };
+  if (typeof o.palName === 'string' && allPals()[o.palName]) { palName = o.palName; LS.set('palName', palName); } // volta com a paleta do projeto, se ela existir aqui
 }
 async function fileAct(v) {
   if (v === 'png') { const s = await askScale('Exportar PNG', `Quadro ${cur.frame + 1}, ${doc.w}×${doc.h}, camadas visíveis.`); if (s) saveBlob(await canvasBlob(scaled(composite(cur.frame), s)), `${slug()}_${doc.w}x${doc.h}${s > 1 ? '_' + s + 'x' : ''}.png`); }
   else if (v === 'sheet') { const s = await askScale('Exportar sprite sheet', `${doc.frames.length} quadro(s) lado a lado, ${doc.w}×${doc.h} cada.`); if (s) saveBlob(await canvasBlob(scaled(sheetImage(), s)), `${slug()}_sheet_${doc.w}x${doc.h}_${doc.frames.length}q${s > 1 ? '_' + s + 'x' : ''}.png`); }
   else if (v === 'save') saveBlob(new Blob([JSON.stringify(serialize())], { type: 'application/json' }), `${slug()}.snapforge.json`);
-  else if (v === 'open') { const f = await pickFile('.json,application/json'); if (!f) return; try { const o = JSON.parse(await f.text()); pushHist(); deserialize(o); fit(); fullRefresh(); toast('Projeto aberto (⌘Z volta ao anterior)'); } catch (e) { hist.pop(); toast(e.message || 'Arquivo inválido'); } }
+  else if (v === 'open') { const f = await pickFile('.json,application/json'); if (!f) return; try { const o = JSON.parse(await f.text()); const fut = pushHist(); try { deserialize(o); } catch (e) { hist.pop(); future.push(...fut); throw e; } selRect = null; fit(); fullRefresh(); renderColor(); refreshAllPalPickers(); toast('Projeto aberto (⌘Z volta ao anterior)'); } catch (e) { toast(e.message || 'Arquivo inválido'); } }
   else if (v === 'rename') { const f = await modal('Renomear projeto', `<input class="input-field" id="pnm" value="${esc(doc.name)}">`, [['Cancelar', null], ['Salvar', '__form', 'primary']]); if (f) { doc.name = $('#pnm', f).value.trim() || doc.name; renderSubtitle(); markDirty(); } }
   else if (v === 'new') { const f = await modal('Novo desenho', `<p class="sec">O desenho atual será substituído (dá para voltar com ⌘Z, ou salve o projeto antes).</p><label class="lbl">Nome<input class="input-field" id="nN" value="Sem título"></label><div class="chips">${SIZES.map(s => `<button onclick="nW.value=${s};nH.value=${s};this.parentNode.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===this))" class="${s === 32 ? 'on' : ''}">${s}</button>`).join('')}</div><div class="grid2"><label class="lbl">Largura<input class="input-field" id="nW" inputmode="numeric" value="32"></label><label class="lbl">Altura<input class="input-field" id="nH" inputmode="numeric" value="32"></label></div>`, [['Cancelar', null], ['Criar', '__form', 'primary']]);
     if (!f) return; const back = snap(); newDoc(clamp(parseInt($('#nW', f).value) || 32, 1, 512), clamp(parseInt($('#nH', f).value) || 32, 1, 512), $('#nN', f).value.trim()); hist.push(back); fit(); fullRefresh(); }
@@ -26,4 +27,10 @@ async function fileAct(v) {
 function placeImage(img, mode) { if (img.width === doc.w && img.height === doc.h) return new Uint8ClampedArray(img.data); if (mode === 'anchor') return fitImage(img, doc.w, doc.h).data;
   const k = Math.min(doc.w / img.width, doc.h / img.height), W = Math.max(1, Math.round(img.width * k)), H = Math.max(1, Math.round(img.height * k)), out = new Uint8ClampedArray(W * H * 4);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const s = (Math.floor(y * img.height / H) * img.width + Math.floor(x * img.width / W)) * 4; out.set(img.data.subarray(s, s + 4), (y * W + x) * 4); } return fitImage({ width: W, height: H, data: out }, doc.w, doc.h).data; }
+/** Snapper / Normal Map → nova camada no quadro atual. Se couber, entra centralizada no tamanho real (sem distorcer os pixels); se não, é reduzida. */
+function addImageAsLayer(img, name) {
+  const fits = img.width <= doc.w && img.height <= doc.h;
+  addLayer(placeImage(img, fits ? 'anchor' : 'scale'), name); showView('editor');
+  toast(fits ? 'Adicionada como camada (⌘Z desfaz)' : `Reduzida para caber em ${doc.w}×${doc.h} (⌘Z desfaz)`);
+}
 function openImageAsDoc(img, name) { if (img.width > 512 || img.height > 512) return toast('Máximo 512×512'); const back = snap(); newDoc(img.width, img.height, name || doc.name); hist.push(back); doc.frames[0][0] = new Uint8ClampedArray(img.data); showView('editor'); requestAnimationFrame(() => { fit(); fullRefresh(); }); toast('Aberto no editor (⌘Z desfaz)'); }
