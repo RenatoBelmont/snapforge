@@ -44,13 +44,17 @@ typography:
     fontSize: "13px"
     fontWeight: 650
   pixel:
-    fontFamily: "Silkscreen (embutida), ui-monospace, monospace"
+    fontFamily: "Silk, ui-monospace, Menlo, Consolas, monospace"
     fontSize: "11px"
     fontWeight: 400
   wordmark:
-    fontFamily: "Silkscreen (embutida)"
+    fontFamily: "Silk"
     fontSize: "15px"
     fontWeight: 700
+  data:
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+    fontSize: "13px"
+    fontWeight: 400
 rounded:
   sm: "7px"
   key: "10px"
@@ -118,7 +122,8 @@ Estratégia **contida**: neutros da carcaça + um acento (ameixa) para ação e 
 ## Typography
 
 - **UI**: fonte do sistema (SF no iPad, Segoe no Windows), 14 px base, rótulos 12,5–13,5 px em 600–750. Números tabulares em todo o app.
-- **Pixel** (Silkscreen, OFL, embutida em base64 — sem rede): marca, faixa LCD, etiquetas das telas, legendas de atalho nas teclas, toast. Mínimo 11 px.
+- **Pixel** (`Silk` = Silkscreen, OFL, embutida em base64 — sem rede): marca, faixa LCD, etiquetas das telas, legendas de atalho nas teclas, toast. Mínimo 11 px.
+- **Dados** (monoespaçada do sistema: `ui-monospace`, `SFMono-Regular`…): só valores medidos — campo hex, números de opacidade/FPS, prompt.
 - Nada de rótulos em caixa alta inventados; a Silkscreen é só maiúscula por natureza e fica restrita às leituras de "aparelho".
 
 ## Layout
