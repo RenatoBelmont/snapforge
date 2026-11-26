@@ -1,6 +1,6 @@
 # Snapforge — guia do projeto (para o Claude Code)
 
-Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.2.1**.
+Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.2.2**.
 
 Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad com Apple Pencil** e também no Windows (Chrome/Firefox). Interface 100% em **português do Brasil**.
 
@@ -118,10 +118,10 @@ Herdado do app Ponto Cruz do Renato. Testado e fácil de quebrar; leia antes de 
 - https://github.com/Hugo-Dz/spritefusion-sprite-normals (`src/*.rs`)
 
 Não foi possível compilar para WebAssembly no ambiente original (download do target `wasm32` bloqueado), por isso o porte em JS. Fidelidade verificada contra os binários Rust nativos:
-- Snapper: **mesma grade em 100% dos casos** e mesma cor-base em 100% das células. Única diferença: o k-means usa `mulberry32(42)` em vez de `ChaCha8(42)`, então os tons exatos das cores podem variar um pouco **quando não há paleta fixa**.
+- Snapper: **saída idêntica byte a byte** (grade e cores), com ou sem paleta fixa. Desde a 1.2.2 o k-means usa um porte exato do `ChaCha8Rng::seed_from_u64(42)` (rand_core 0.6.4 / rand_chacha 0.3.1), do `gen_range` e do `WeightedIndex<f32>` do rand 0.8.5, e emula as contas em f32 do Rust (`Math.fround`/`Float32Array`). As distâncias são calculadas uma vez por cor única — mesmo resultado, 1,5–2,5× mais rápido que o porte anterior. Usa `BigInt` (Safari 14+).
 - Normals: diferença máxima de **1/255 por canal** (arredondamento f32 × f64).
 
-Para reverificar: clone os dois repositórios numa pasta `sf-repos/` ao lado do projeto (ou aponte `SF_REPOS`), rode `cargo build --release` em cada um e depois `npm run test:engines`. Se quiser trocar o porte pelo WASM oficial: `rustup target add wasm32-unknown-unknown` + `wasm-pack build --target web` (snapper) / `wasm-bindgen` 0.2.126 (normals), embutir o `.wasm` em base64 e manter a mesma interface de `runEngine`.
+Para reverificar: clone os dois repositórios numa pasta `sf-repos/` ao lado do projeto (ou aponte `SF_REPOS`), rode `cargo build --release` em cada um e depois `npm run test:engines` (última verificação: upstream do snapper em `02f9315`, 2026-10-20; Rust 1.97). Mexeu no k-means? Esse teste exige igualdade exata. Se quiser trocar o porte pelo WASM oficial: `rustup target add wasm32-unknown-unknown` + `wasm-pack build --target web` (snapper) / `wasm-bindgen` 0.2.126 (normals), embutir o `.wasm` em base64 e manter a mesma interface de `runEngine`.
 
 ## Tilemap
 
@@ -139,10 +139,13 @@ Não coberto: **Safari/WebKit de verdade** (o comportamento do iPad foi simulado
 
 ## Publicar no iPad
 
-Igual ao app Ponto Cruz (repo `RenatoBelmont/ponto-cruz`): publicar o **conteúdo de `dist/pwa/`** no GitHub Pages (ou Vercel), abrir no Safari → Compartilhar → Adicionar à Tela de Início. O service worker troca a versão sozinho a cada build. Um HTML solto aberto pelo app Arquivos do iPad não roda bem — por isso o PWA.
+O GitHub Pages publica **a raiz da branch** (Settings → Pages → Deploy from a branch → `/ (root)`). Na raiz há um `index.html` que só redireciona para `dist/pwa/` e um `.nojekyll` (sem ele o Jekyll processaria o repositório). Endereço: **https://renatobelmont.github.io/snapforge/** → abre `…/snapforge/dist/pwa/`. Como `dist/` é versionado, **todo push com o build feito já publica** — rode `npm run build` antes de commitar.
+
+No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O service worker troca a versão sozinho a cada build (cache `snapforge-*`, não mexe nos caches de outros apps do mesmo domínio `github.io`). Um HTML solto aberto pelo app Arquivos do iPad não roda bem — por isso o PWA. Ao juntar a branch na `main`, troque a branch em Settings → Pages.
 
 ## Histórico
 
+- **1.2.2** — Pixel Snapper **idêntico ao Rust** também nas cores do k-means (ChaCha8 + `gen_range` + `WeightedIndex` portados, contas em f32), e mais rápido (cálculo por cor única); `test:engines` passa a exigir igualdade byte a byte e cobre 4–64 cores; GitHub Pages configurado (redirecionamento na raiz + `.nojekyll`).
 - **1.2.1** — auditoria geral. **Correções:** "Adicionar como camada" no Snapper e no Normal Map quebrava (`addImageAsLayer` não existia); "Novo mapa" ignorava o tamanho escolhido (chips sem ação); fazer uma seleção apagava a pilha de refazer e avisava "camada travada"; balde/traço sem efeito criava passo de desfazer vazio e apagava o refazer; abrir JSON inválido comia um passo do desfazer; seletor de paleta se acumulava na memória a cada troca de cor; balde do tilemap no toque preenchia ao encostar (agora só ao soltar, como no editor); tileset de `.tilemap.json` aceitava qualquer URL (agora só `data:image`, sem rede) e uma imagem quebrada travava o painel; trocar tileset/tamanho do tile e abrir mapa agora entram no desfazer sem misturar estados; mesclar camadas respeita a trava; projeto aberto volta com a sua paleta; histórico do editor também limitado por memória (~160 MB). **Design:** barra do palco sempre numa linha (rótulos somem quando aperta; em retrato saem os botões ± de zoom), ícones distintos para Abrir (pasta) e Salvar (disquete), Snapper/Normal em retrato com os cards de ajuste lado a lado (o botão Aplicar aparece sem rolar), anel de foco para teclado, alvos de toque maiores (Recentes, cores do seletor, apagar paleta), `prefers-reduced-motion`, títulos nos botões de zoom do tilemap. Removido código morto (`renderBar`, `trimAlpha`, `b64ToImage`, `fillPalSelect`, `st.panel`).
 - **1.2.0** — volta ao layout da v1 (cabeçalho numa linha, painel direito em cards, tela única sem rolagem); **IA removida** (Gemini/Groq); aba **Tilemap**; **lupa** sincronizada no Snapper e Normal Map; **card de carregamento** central; seletor de paleta **com prévia**; botões de tamanho 16–128 (canvas, Snapper, mapa, prompt); salvamento imediato ao sair do app; correções: botões de modal sem estilo, seleção múltipla no tileset, carimbo de bloco, regras de autotile ao lado do tileset.
 - **1.1.0** — visual do Waypoint aplicado; recursos de iPad do Ponto Cruz (Só Pencil, gestos, lupa, balde no soltar, faixa de cores); pixel perfeito, copiar/colar seleção, camadas com trava/arrastar/mesclar, seletor de cor com toque, PWA; IA via Gemini + Groq (removida na 1.2.0).

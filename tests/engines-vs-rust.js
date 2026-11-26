@@ -13,14 +13,17 @@ for (const [label, args, opts] of [
   ['paleta fixa', ['--palette', pal], { palette: pal }],
   ['16 cores', ['16'], { k_colors: 16 }],
   ['pixel-size 10', ['16', '--pixel-size', '10'], { k_colors: 16, pixel_size_override: 10 }],
+  ['4 cores', ['4'], { k_colors: 4 }],
+  ['32 cores', ['32'], { k_colors: 32 }],
+  ['64 cores', ['64'], { k_colors: 64 }],
 ]) {
   execFileSync(SN, [require('path').join(__dirname,'fixtures','ai_like.png'), require('path').join(require('os').tmpdir(),'ref_snap.png'), ...args]);
   const ref = load(require('path').join(require('os').tmpdir(),'ref_snap.png')), js = E.snapPixels(load(require('path').join(__dirname,'fixtures','ai_like.png')), opts);
   ok(ref.width === js.width && ref.height === js.height, `snapper ${label}: tamanho ref ${ref.width}x${ref.height} / js ${js.width}x${js.height}`);
   if (ref.width === js.width && ref.height === js.height) {
-    let same = 0; for (let i = 0; i < ref.data.length; i += 4) if (Math.abs(ref.data[i] - js.data[i]) + Math.abs(ref.data[i + 1] - js.data[i + 1]) + Math.abs(ref.data[i + 2] - js.data[i + 2]) < 24) same++;
-    const pct = same / (ref.data.length / 4);
-    ok(pct > 0.97, `snapper ${label}: ${(pct * 100).toFixed(1)}% pixels equivalentes`);
+    // o k-means usa o mesmo ChaCha8(42) e as mesmas contas em f32 do Rust: a saída tem que ser idêntica, byte a byte
+    let diff = 0; for (let i = 0; i < ref.data.length; i++) if (ref.data[i] !== js.data[i]) diff++;
+    ok(diff === 0, `snapper ${label}: ${diff} bytes diferentes do Rust`);
   }
 }
 

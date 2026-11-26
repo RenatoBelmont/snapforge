@@ -16,17 +16,55 @@
     pixel_size_override: null, palette: null,
   };
 
-  // PRNG determinístico (o original usa ChaCha8 com seed 42; aqui mulberry32 com a mesma seed)
-  function rng(seed) {
-    let a = seed >>> 0;
-    return function () {
-      a = (a + 0x6D2B79F5) >>> 0;
-      let t = a;
-      t = Math.imul(t ^ (t >>> 15), t | 1);
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  // ChaCha8Rng::seed_from_u64 igual ao Rust (rand_core 0.6.4 + rand_chacha 0.3.1): mesma sequência de números,
+  // então o k-means escolhe as mesmas cores que o binário original. Inclui gen_range(0..n) e WeightedIndex<f32> do rand 0.8.5.
+  const f32 = Math.fround, M64 = (1n << 64n) - 1n;
+  function chacha8(seed) {
+    const key = new Uint32Array(8); let s = BigInt(seed) & M64;
+    for (let i = 0; i < 8; i++) { // PCG32 expande a semente em 32 bytes
+      s = (s * 6364136223846793005n + 11634580027462260723n) & M64;
+      const xs = Number((((s >> 18n) ^ s) >> 27n) & 0xffffffffn) >>> 0, rot = Number(s >> 59n);
+      key[i] = ((xs >>> rot) | (xs << ((32 - rot) & 31))) >>> 0;
+    }
+    const st = new Uint32Array(16), x = new Uint32Array(16), buf = new Uint32Array(64); let ctr = 0, idx = 64;
+    const qr = (a, b, c, d) => {
+      x[a] += x[b]; x[d] ^= x[a]; x[d] = (x[d] << 16) | (x[d] >>> 16);
+      x[c] += x[d]; x[b] ^= x[c]; x[b] = (x[b] << 12) | (x[b] >>> 20);
+      x[a] += x[b]; x[d] ^= x[a]; x[d] = (x[d] << 8) | (x[d] >>> 24);
+      x[c] += x[d]; x[b] ^= x[c]; x[b] = (x[b] << 7) | (x[b] >>> 25);
+    };
+    function refill() { // 4 blocos de 16 palavras, contador de 64 bits, stream 0
+      for (let blk = 0; blk < 4; blk++, ctr++) {
+        st[0] = 0x61707865; st[1] = 0x3320646e; st[2] = 0x79622d32; st[3] = 0x6b206574; st.set(key, 4);
+        st[12] = ctr >>> 0; st[13] = Math.floor(ctr / 4294967296); st[14] = 0; st[15] = 0; x.set(st);
+        for (let r = 0; r < 4; r++) { qr(0, 4, 8, 12); qr(1, 5, 9, 13); qr(2, 6, 10, 14); qr(3, 7, 11, 15); qr(0, 5, 10, 15); qr(1, 6, 11, 12); qr(2, 7, 8, 13); qr(3, 4, 9, 14); }
+        for (let i = 0; i < 16; i++) buf[blk * 16 + i] = x[i] + st[i];
+      }
+    }
+    const u32 = () => { if (idx >= 64) { refill(); idx = 0; } return buf[idx++]; };
+    const u64 = () => { let lo, hi; // mesma regra do BlockRng::next_u64
+      if (idx < 63) { lo = buf[idx]; hi = buf[idx + 1]; idx += 2; } else if (idx >= 64) { refill(); lo = buf[0]; hi = buf[1]; idx = 2; } else { lo = buf[63]; refill(); hi = buf[0]; idx = 1; }
+      return (BigInt(hi) << 32n) | BigInt(lo); };
+    return {
+      u32,
+      range(n) { // rng.gen_range(0..n) para u64 (UniformInt::sample_single_inclusive)
+        const r = BigInt(n), zone = ((r << BigInt(64 - r.toString(2).length)) & M64) - 1n;
+        for (;;) { const m = u64() * r; if ((m & M64) <= zone) return Number(m >> 64n); }
+      },
+      weighted(w, n) { // WeightedIndex::<f32>::new(w).sample(rng): somas acumuladas em f32 + UniformFloat<f32>
+        const cum = new Float32Array(Math.max(1, n - 1)); let total = w[0];
+        for (let j = 1; j < n; j++) { cum[j - 1] = total; total = f32(total + w[j]); }
+        let scale = total; const maxRand = f32(1 - 2 ** -23), bits = new DataView(new ArrayBuffer(4));
+        while (f32(scale * maxRand) >= total) { bits.setFloat32(0, scale); bits.setUint32(0, bits.getUint32(0) - 1); scale = bits.getFloat32(0); }
+        const chosen = f32(((u32() >>> 9) / 8388608) * scale);
+        let lo = 0, hi = n - 1; while (lo < hi) { const mid = (lo + hi) >> 1; if (cum[mid] <= chosen) lo = mid + 1; else hi = mid; }
+        return lo;
+      },
     };
   }
+  // dist_sq do Rust, em f32
+  const distSq = (r, g, b, c0, c1, c2) => { const dr = f32(r - c0), dg = f32(g - c1), db = f32(b - c2); return f32(f32(f32(dr * dr) + f32(dg * dg)) + f32(db * db)); };
+  const F32_MAX = 3.4028234663852886e38;
 
   function parsePaletteHex(value) {
     if (!value || !String(value).trim()) throw new Error('A paleta precisa ter ao menos uma cor');
@@ -50,42 +88,42 @@
     if (N === 0) return { width: w, height: h, data: new Uint8ClampedArray(data) };
     const px = new Float32Array(N * 3);
     for (let j = 0; j < N; j++) { const o = idx[j] * 4; px[j * 3] = data[o]; px[j * 3 + 1] = data[o + 1]; px[j * 3 + 2] = data[o + 2]; }
-    const rand = rng(cfg.k_seed);
+    // As distâncias só dependem da cor: calcula uma vez por cor única (uc) e repassa a cada pixel (uid), mantendo a ordem
+    // das somas em f32 pixel a pixel — o resultado continua idêntico ao do Rust, só que bem mais rápido.
+    const uid = new Uint32Array(N), umap = new Map(), ucList = [];
+    for (let j = 0; j < N; j++) { const key = (px[j * 3] << 16) | (px[j * 3 + 1] << 8) | px[j * 3 + 2]; let u = umap.get(key); if (u === undefined) { u = ucList.length / 3; umap.set(key, u); ucList.push(px[j * 3], px[j * 3 + 1], px[j * 3 + 2]); } uid[j] = u; }
+    const uc = Float32Array.from(ucList), U = uc.length / 3, ubest = new Uint32Array(U);
+    const rng = chacha8(cfg.k_seed);
     const k = Math.min(cfg.k_colors, N);
-    const cent = [];
-    const pick = (j) => [px[j * 3], px[j * 3 + 1], px[j * 3 + 2]];
-    cent.push(pick(Math.floor(rand() * N)));
-    const dist = new Float64Array(N).fill(Number.MAX_VALUE);
+    const cent = new Float32Array(k * 3); let nc = 0;
+    const push = (j) => { cent[nc * 3] = px[j * 3]; cent[nc * 3 + 1] = px[j * 3 + 1]; cent[nc * 3 + 2] = px[j * 3 + 2]; nc++; };
+    push(rng.range(N)); // k-means++
+    const dist = new Float32Array(N), udist = new Float32Array(U).fill(F32_MAX);
     for (let c = 1; c < k; c++) {
-      const L = cent[cent.length - 1];
+      const L0 = cent[(nc - 1) * 3], L1 = cent[(nc - 1) * 3 + 1], L2 = cent[(nc - 1) * 3 + 2];
+      for (let u = 0; u < U; u++) { const d = distSq(uc[u * 3], uc[u * 3 + 1], uc[u * 3 + 2], L0, L1, L2); if (d < udist[u]) udist[u] = d; }
       let sum = 0;
-      for (let j = 0; j < N; j++) {
-        const dr = px[j * 3] - L[0], dg = px[j * 3 + 1] - L[1], db = px[j * 3 + 2] - L[2];
-        const d = dr * dr + dg * dg + db * db;
-        if (d < dist[j]) dist[j] = d;
-        sum += dist[j];
-      }
-      if (sum <= 0) { cent.push(pick(Math.floor(rand() * N))); continue; }
-      let r = rand() * sum, chosen = N - 1;
-      for (let j = 0; j < N; j++) { r -= dist[j]; if (r < 0) { chosen = j; break; } }
-      cent.push(pick(chosen));
+      for (let j = 0; j < N; j++) { dist[j] = udist[uid[j]]; sum = f32(sum + dist[j]); }
+      push(sum <= 0 ? rng.range(N) : rng.weighted(dist, N));
     }
-    let prev = cent.map((c) => c.slice());
+    let prev = cent.slice();
+    const sums = new Float32Array(k * 3), counts = new Uint32Array(k);
     for (let it = 0; it < cfg.max_kmeans_iterations; it++) {
-      const sums = Array.from({ length: k }, () => [0, 0, 0]), counts = new Array(k).fill(0);
-      for (let j = 0; j < N; j++) {
-        const r = px[j * 3], g = px[j * 3 + 1], b = px[j * 3 + 2];
-        let best = 0, md = Infinity;
-        for (let c = 0; c < k; c++) { const dr = r - cent[c][0], dg = g - cent[c][1], db = b - cent[c][2]; const d = dr * dr + dg * dg + db * db; if (d < md) { md = d; best = c; } }
-        sums[best][0] += r; sums[best][1] += g; sums[best][2] += b; counts[best]++;
+      sums.fill(0); counts.fill(0);
+      for (let u = 0; u < U; u++) {
+        const r = uc[u * 3], g = uc[u * 3 + 1], b = uc[u * 3 + 2];
+        let best = 0, md = F32_MAX;
+        for (let c = 0; c < k; c++) { const d = distSq(r, g, b, cent[c * 3], cent[c * 3 + 1], cent[c * 3 + 2]); if (d < md) { md = d; best = c; } }
+        ubest[u] = best;
       }
-      for (let c = 0; c < k; c++) if (counts[c] > 0) cent[c] = [sums[c][0] / counts[c], sums[c][1] / counts[c], sums[c][2] / counts[c]];
+      for (let j = 0; j < N; j++) { const best = ubest[uid[j]]; sums[best * 3] += px[j * 3]; sums[best * 3 + 1] += px[j * 3 + 1]; sums[best * 3 + 2] += px[j * 3 + 2]; counts[best]++; } // Float32Array arredonda como o f32 do Rust
+      for (let c = 0; c < k; c++) if (counts[c] > 0) { cent[c * 3] = sums[c * 3] / counts[c]; cent[c * 3 + 1] = sums[c * 3 + 1] / counts[c]; cent[c * 3 + 2] = sums[c * 3 + 2] / counts[c]; }
       if (it > 0) {
         let mm = 0;
-        for (let c = 0; c < k; c++) { const dr = cent[c][0] - prev[c][0], dg = cent[c][1] - prev[c][1], db = cent[c][2] - prev[c][2]; mm = Math.max(mm, dr * dr + dg * dg + db * db); }
-        if (mm < 0.01) break;
+        for (let c = 0; c < k; c++) { const d = distSq(cent[c * 3], cent[c * 3 + 1], cent[c * 3 + 2], prev[c * 3], prev[c * 3 + 1], prev[c * 3 + 2]); if (d > mm) mm = d; }
+        if (mm < f32(0.01)) break;
       }
-      prev = cent.map((c) => c.slice());
+      prev = cent.slice();
     }
     const out = new Uint8ClampedArray(data);
     const cache = new Map();
@@ -95,8 +133,8 @@
       const key = (data[o] << 16) | (data[o + 1] << 8) | data[o + 2];
       let c = cache.get(key);
       if (!c) {
-        let md = Infinity; c = [data[o], data[o + 1], data[o + 2]];
-        for (const ce of cent) { const dr = data[o] - ce[0], dg = data[o + 1] - ce[1], db = data[o + 2] - ce[2]; const d = dr * dr + dg * dg + db * db; if (d < md) { md = d; c = [Math.round(ce[0]), Math.round(ce[1]), Math.round(ce[2])]; } }
+        let md = F32_MAX; c = [data[o], data[o + 1], data[o + 2]];
+        for (let q = 0; q < k; q++) { const d = distSq(data[o], data[o + 1], data[o + 2], cent[q * 3], cent[q * 3 + 1], cent[q * 3 + 2]); if (d < md) { md = d; c = [Math.round(cent[q * 3]), Math.round(cent[q * 3 + 1]), Math.round(cent[q * 3 + 2])]; } }
         cache.set(key, c);
       }
       out[o] = c[0]; out[o + 1] = c[1]; out[o + 2] = c[2];
