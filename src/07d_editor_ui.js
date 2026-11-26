@@ -234,5 +234,5 @@ document.addEventListener('keydown', (e) => {
 });
 document.addEventListener('keyup', (e) => { if (e.key === ' ') panMode = false; });
 function showHelp() { modal('Ajuda e atalhos', `<div class="note"><strong>Apple Pencil:</strong> quando a caneta encosta pela primeira vez, liga "Só Pencil": a caneta desenha, e o dedo e a palma só movem e dão zoom.</div>
-  <div class="note"><strong>Gestos:</strong> pinça dá zoom e move · dois dedos tocando desfaz · três refaz · segurar um dedo parado abre o conta-gotas com lupa.</div>
+  <div class="note"><strong>Gestos (como no Procreate):</strong> pinça dá zoom e move · tocar com dois dedos desfaz e com três refaz · segurar dois ou três dedos desfaz ou refaz em sequência · segurar um dedo parado abre o conta-gotas com lupa.</div>
   <div class="note"><strong>Teclado:</strong> B lápis · E borracha · G balde · I conta-gotas · L linha · U retângulo · O elipse · S seleção · M mover · H mão · X simetria · [ ] tamanho · F tela cheia · C faixa de cores · 0 ajustar · setas movem (⇧ = 8 px) · , . quadros · ⌘Z/⇧⌘Z · ⌘C ⌘X ⌘V · ⌘D duplica camada · ⌘A tudo · Delete limpa · espaço + arrastar move a vista · Alt + clique pega cor.</div>`, [['Fechar', null, 'primary']]); }

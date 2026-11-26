@@ -962,7 +962,7 @@ pre.prompt{white-space:pre-wrap;font:12px/1.55 var(--mono);background:rgb(var(--
 </script>
 <script>
 'use strict';
-const VERSION = '1.7.0';
+const VERSION = '1.7.1';
 /* ---- 00_base.js ---- */
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1095,6 +1095,18 @@ function fitImage(img, w, h) { const out = new Uint8ClampedArray(w * h * 4), ox 
 function keyMagenta(img, tol = 60) { const d = new Uint8ClampedArray(img.data); for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 255) + d[i + 1] + Math.abs(d[i + 2] - 255) < tol) d[i + 3] = 0; return { width: img.width, height: img.height, data: d }; }
 const slug = () => (doc.name || 'snapforge').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'snapforge';
 
+/* Toque com vários dedos, como no Procreate: tocar com 2 desfaz e com 3 refaz; segurar parado repete, acelerando.
+   `g` é o estado do gesto ({ max, moved }), criado pelo canvas; gestArm é chamado a cada dedo que chega. */
+const GEST_HOLD_MS = 500;
+function gestArm(g, undoFn, redoFn) {
+  clearTimeout(g.hold);
+  g.hold = setTimeout(() => {
+    if (g.moved || g.done) return; g.held = true; let dt = 300;
+    const step = () => { if (g.moved || g.done) return; (g.max >= 3 ? redoFn : undoFn)(); dt = Math.max(80, dt * .82); g.rep = setTimeout(step, dt); };
+    step();
+  }, GEST_HOLD_MS);
+}
+function gestStop(g) { g.done = true; clearTimeout(g.hold); clearTimeout(g.rep); }
 
 /* ---- 03_engine.js ---- */
 /* ======================= motores (worker com fallback) ======================= */
@@ -1415,7 +1427,9 @@ function abortStroke() {
 function refreshAfterEdit() { render(); renderLayers(); renderFrames(); renderFaixa(); updateBar(); markDirty(); }
 
 /* ======================= entrada: Apple Pencil, toque, mouse ======================= */
-const TOUCHES = new Map(); let PEN_DOWN = false, pinch = null, LP = null, CG = null, GEST = null, fillPend = null, panMode = false;
+const TOUCHES = new Map(); let PEN_DOWN = false, pinch = null, LP = null, CG = null, GEST = null, fillPend = null, panMode = false, VIEW0 = null;
+const gestUndo = () => { if (!hist.length) return toast('Nada para desfazer', 900); undo(); toast('Desfeito (dois dedos)', 900); };
+const gestRedo = () => { if (!future.length) return toast('Nada para refazer', 900); redo(); toast('Refeito (três dedos)', 900); };
 function toPix(cx_, cy_) { const r = cv.getBoundingClientRect(); return [Math.floor((cx_ - r.left - st.ox) / st.zoom), Math.floor((cy_ - r.top - st.oy) / st.zoom)]; }
 function compositeAt(x, y) { if (!inside(x, y)) return null; const c = composite(cur.frame), o = (y * doc.w + x) * 4; return [c.data[o], c.data[o + 1], c.data[o + 2], c.data[o + 3]]; }
 function lupaEm(clientX, clientY) {
@@ -1441,11 +1455,16 @@ cv.addEventListener('pointerdown', (e) => {
   try { cv.setPointerCapture(e.pointerId); } catch {}
   if (e.pointerType === 'pen') { PEN_DOWN = true; pinch = null; if (stroke && stroke.pan) stroke = null; if (!st.penSeen && !st.penOnly) setPenOnly(true, true); }
   if (e.pointerType === 'touch') {
-    TOUCHES.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
-    if (TOUCHES.size === 1) { clearTimeout(LP && LP.t); GEST = null;
+    TOUCHES.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now() });
+    if (TOUCHES.size === 1) { clearTimeout(LP && LP.t); if (GEST) gestStop(GEST); GEST = null; VIEW0 = { zoom: st.zoom, ox: st.ox, oy: st.oy };
       LP = { id: e.pointerId, x: e.clientX, y: e.clientY, t: setTimeout(() => { if (LP && TOUCHES.size === 1 && !pinch) { if (strokeActive()) abortStroke(); if (stroke && stroke.pan) stroke = null; fillPend = null; startPick(LP.id, LP.x, LP.y); LP = null; } }, 420) }; }
-    else { if (LP) { clearTimeout(LP.t); LP = null; } if (CG) endPick(false); fillPend = null; if (!GEST) GEST = { t0: performance.now(), max: 0, moved: false }; GEST.max = Math.max(GEST.max, TOUCHES.size); }
-    if (TOUCHES.size === 2 && !PEN_DOWN) { if (strokeActive()) { abortStroke(); if (GEST) GEST.moved = true; } stroke = null; const m = meio(), r = cv.getBoundingClientRect(); pinch = { d0: m.d, z0: st.zoom, mx: m.x - r.left, my: m.y - r.top, ox: st.ox, oy: st.oy }; return; }
+    else { if (LP) { clearTimeout(LP.t); LP = null; } if (CG) endPick(false); fillPend = null; if (!GEST) GEST = { t0: performance.now(), max: 0, moved: false, view: VIEW0 }; GEST.max = Math.max(GEST.max, TOUCHES.size);
+      if (!PEN_DOWN) gestArm(GEST, gestUndo, gestRedo); }
+    if (TOUCHES.size === 2 && !PEN_DOWN) {
+      // Os dedos nunca chegam juntos: com "Dedo pinta", o 1º já começou um traço. Ele é desfeito sempre, mas só vira pinça (sem desfazer)
+      // se já estava desenhando de verdade (> 250 ms ou > 14 px); senão é o começo de um toque de 2/3 dedos, como no Procreate.
+      if (strokeActive()) { const f = [...TOUCHES.values()][0], longo = performance.now() - f.t0 > 250 || Math.hypot(f.x - f.x0, f.y - f.y0) > 14; abortStroke(); if (GEST && longo) GEST.moved = true; }
+      stroke = null; const m = meio(), r = cv.getBoundingClientRect(); pinch = { d0: m.d, z0: st.zoom, mx: m.x - r.left, my: m.y - r.top, ox: st.ox, oy: st.oy }; return; }
     if (TOUCHES.size > 2) return;
   }
   if (pinch || PEN_DOWN && e.pointerType === 'touch') return;
@@ -1475,8 +1494,9 @@ function endPtr(e) {
   if (CG && e.pointerId === CG.id) { endPick(e.type === 'pointerup'); TOUCHES.delete(e.pointerId); return; }
   if (LP && LP.id === e.pointerId) { clearTimeout(LP.t); LP = null; }
   const wasTouch = TOUCHES.delete(e.pointerId);
-  if (wasTouch && TOUCHES.size === 0 && GEST) { const g = GEST; GEST = null; pinch = null;
-    if (!g.moved && performance.now() - g.t0 < 450 && e.type === 'pointerup') { if (g.max === 2) { undo(); toast('Desfeito (dois dedos)', 1200); } else if (g.max >= 3) { redo(); toast('Refeito (três dedos)', 1200); } }
+  if (wasTouch && TOUCHES.size === 0 && GEST) { const g = GEST; GEST = null; pinch = null; gestStop(g);
+    if (!g.moved && !g.held && performance.now() - g.t0 < 450 && e.type === 'pointerup') { if (g.max === 2) gestUndo(); else if (g.max >= 3) gestRedo(); }
+    if (!g.moved && g.view) { st.zoom = g.view.zoom; st.ox = g.view.ox; st.oy = g.view.oy; render(); } // foi toque, não pinça: a vista volta exatamente ao que era
     stroke = null; return; }
   if (wasTouch && pinch && TOUCHES.size < 2) { pinch = null; stroke = null; return; }
   if (fillPend && fillPend.id === e.pointerId) { const f = fillPend; fillPend = null; if (e.type === 'pointerup' && !GEST && !pinch) beginStroke(f.x, f.y); return; }
@@ -1824,7 +1844,7 @@ document.addEventListener('keydown', (e) => {
 });
 document.addEventListener('keyup', (e) => { if (e.key === ' ') panMode = false; });
 function showHelp() { modal('Ajuda e atalhos', `<div class="note"><strong>Apple Pencil:</strong> quando a caneta encosta pela primeira vez, liga "Só Pencil": a caneta desenha, e o dedo e a palma só movem e dão zoom.</div>
-  <div class="note"><strong>Gestos:</strong> pinça dá zoom e move · dois dedos tocando desfaz · três refaz · segurar um dedo parado abre o conta-gotas com lupa.</div>
+  <div class="note"><strong>Gestos (como no Procreate):</strong> pinça dá zoom e move · tocar com dois dedos desfaz e com três refaz · segurar dois ou três dedos desfaz ou refaz em sequência · segurar um dedo parado abre o conta-gotas com lupa.</div>
   <div class="note"><strong>Teclado:</strong> B lápis · E borracha · G balde · I conta-gotas · L linha · U retângulo · O elipse · S seleção · M mover · H mão · X simetria · [ ] tamanho · F tela cheia · C faixa de cores · 0 ajustar · setas movem (⇧ = 8 px) · , . quadros · ⌘Z/⇧⌘Z · ⌘C ⌘X ⌘V · ⌘D duplica camada · ⌘A tudo · Delete limpa · espaço + arrastar move a vista · Alt + clique pega cor.</div>`, [['Fechar', null, 'primary']]); }
 
 /* ---- 07e_prow.js ---- */
@@ -2034,7 +2054,8 @@ function addTLayer(auto, name, silent) {
 }
 const tSnap = () => ({ name: tm.name, tileset: tm.tileset, mw: tm.mw, mh: tm.mh, tw: tm.tw, th: tm.th, layer: ts.layer, msel: ts.msel && { ...ts.msel }, layers: tm.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })) });
 const tRestore = (s) => { const reload = s.tileset !== tm.tileset || s.tw !== tm.tw || s.th !== tm.th; Object.assign(tm, { name: s.name, tileset: s.tileset, mw: s.mw, mh: s.mh, tw: s.tw, th: s.th }); if (reload) loadTsImage(() => { renderTSide(); tRender(); }); tm.layers = s.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })); ts.layer = clamp(s.layer, 0, tm.layers.length - 1); ts.msel = s.msel ? { ...s.msel } : null; mapDirty = true; if (typeof renderTSelBar === 'function') renderTSelBar(); };
-function tPush() { tHist.push(tSnap()); if (tHist.length > 60) tHist.shift(); tFuture.length = 0; }
+/** Guarda o estado atual. Devolve a pilha de refazer descartada, para o traço que não mudar nada (ou for cancelado) devolvê-la. */
+function tPush() { tHist.push(tSnap()); if (tHist.length > 60) tHist.shift(); return tFuture.splice(0); }
 function tUndo() { if (!tHist.length) return toast('Nada para desfazer'); tFuture.push(tSnap()); tRestore(tHist.pop()); renderTSide(); tRender(); tSave(); }
 function tRedo() { if (!tFuture.length) return toast('Nada para refazer'); tHist.push(tSnap()); tRestore(tFuture.pop()); renderTSide(); tRender(); tSave(); }
 
@@ -2169,12 +2190,12 @@ function tBegin(x, y, id) {
   if (ts.tool === 'select') {
     if (tInSel(x, y) && tSelClip()) { // arrastar dentro da seleção move o conteúdo
       if (!L.visible) { toast('A camada está oculta'); tStroke = { noop: true }; return; }
-      tPush(); tStroke = { id, move: true, x0: x, y0: y, sel0: { ...tSelClip() }, base: (L.auto ? L.cells : L.data).slice(), changed: false }; return; }
+      const fut = tPush(); tStroke = { id, fut, move: true, x0: x, y0: y, sel0: { ...tSelClip() }, base: (L.auto ? L.cells : L.data).slice(), changed: false }; return; }
     tStroke = { id, select: true, x0: x, y0: y, prev: ts.msel, moved: false }; ts.msel = { x: clamp(x, 0, tm.mw - 1), y: clamp(y, 0, tm.mh - 1), w: 1, h: 1 }; tRender(); return; // selecionar não entra no desfazer
   }
   if (!L.visible) { toast('A camada está oculta'); tStroke = { noop: true }; return; }
   if (ts.tool === 'pick') { const i = y * tm.mw + x; if (tIn(x, y)) { const t = tileAt(L, i); if (t >= 0) { ts.sel = { x: t % tsCols, y: Math.floor(t / tsCols), w: 1, h: 1 }; setTTool('stamp'); renderTileset(); } } tStroke = { noop: true }; return; }
-  tPush(); tStroke = { id, lx: x, ly: y, anchor: [x, y], changed: false };
+  const fut = tPush(); tStroke = { id, fut, lx: x, ly: y, anchor: [x, y], changed: false };
   if (ts.tool === 'fill') { tStroke.changed = tFill(x, y); tEnd(); return; } // sem isso o tEnd achava que nada mudou: não redesenhava e jogava fora o desfazer
   if (ts.tool === 'rect') { tRect = { x0: x, y0: y, x1: x, y1: y }; tRender(); return; }
   tPaintAt(x, y, ts.tool === 'erase', null); tStroke.changed = true; mapDirty = true; tRender();
@@ -2195,24 +2216,28 @@ function tEnd() {
   if (tRect) { const a = Math.min(tRect.x0, tRect.x1), b = Math.min(tRect.y0, tRect.y1), c = Math.max(tRect.x0, tRect.x1), d = Math.max(tRect.y0, tRect.y1), L = tm.layers[ts.layer];
     for (let y = b; y <= d; y++) for (let x = a; x <= c; x++) { if (L.auto) tSet(L, x, y, 1); else if (ts.random) tStampAt(x, y, false, null); else tStampAt(x, y, false, [a, b]); }
     tRect = null; tStroke.changed = true; mapDirty = true; }
-  if (!tStroke.changed) tHist.pop(); else mapDirty = true;
+  if (!tStroke.changed) { tHist.pop(); if (tStroke.fut) tFuture.push(...tStroke.fut); } else mapDirty = true; // nada mudou: o refazer continua
   tStroke = null; tRender(); tSave(); renderTLayers();
 }
 function tAbort() {
   if (tStroke && tStroke.select) ts.msel = tStroke.prev; // a pinça começou: volta a seleção que existia
-  else if (tStroke && !tStroke.noop && tHist.length) { tRestore(tHist.pop()); }
+  else if (tStroke && !tStroke.noop && tHist.length) { tRestore(tHist.pop()); if (tStroke.fut) tFuture.push(...tStroke.fut); } // traço cancelado (ex.: virou gesto de dedos): devolve o refazer
   tStroke = null; tRect = null; tRender(); renderTSelBar();
 }
 
 /* ---------- entrada (mesmos gestos do editor) ---------- */
-const TT_T = new Map(); let tPin = null, tGest = null, tPenDown = false, tPan = null, tFillPend = null;
+const TT_T = new Map(); let tPin = null, tGest = null, tPenDown = false, tPan = null, tFillPend = null, tView0 = null;
+const tGestUndo = () => { if (!tHist.length) return toast('Nada para desfazer', 900); tUndo(); toast('Desfeito (dois dedos)', 900); };
+const tGestRedo = () => { if (!tFuture.length) return toast('Nada para refazer', 900); tRedo(); toast('Refeito (três dedos)', 900); };
 const tMeio = () => { const p = [...TT_T.values()]; return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2, d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) || 1 }; };
 tcv.addEventListener('pointerdown', (e) => {
   try { tcv.setPointerCapture(e.pointerId); } catch {}
   if (e.pointerType === 'pen') { tPenDown = true; tPin = null; tPan = null; if (!st.penSeen && !st.penOnly) setPenOnly(true, true); }
-  if (e.pointerType === 'touch') { TT_T.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
-    if (TT_T.size > 1) { tFillPend = null; if (!tGest) tGest = { t0: performance.now(), max: 0, moved: false }; tGest.max = Math.max(tGest.max, TT_T.size); } else tGest = null;
-    if (TT_T.size === 2 && !tPenDown) { if (tStroke && !tStroke.noop) { tAbort(); if (tGest) tGest.moved = true; } tStroke = null; tPan = null; const m = tMeio(), r = tcv.getBoundingClientRect(); tPin = { d0: m.d, z0: ts.zoom, mx: m.x - r.left, my: m.y - r.top, ox: ts.ox, oy: ts.oy }; return; }
+  if (e.pointerType === 'touch') { TT_T.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now() });
+    if (TT_T.size > 1) { tFillPend = null; if (!tGest) tGest = { t0: performance.now(), max: 0, moved: false, view: tView0 }; tGest.max = Math.max(tGest.max, TT_T.size); if (!tPenDown) gestArm(tGest, tGestUndo, tGestRedo); }
+    else { if (tGest) gestStop(tGest); tGest = null; tView0 = { zoom: ts.zoom, ox: ts.ox, oy: ts.oy }; }
+    // mesma regra do editor: o 1º dedo só transforma o gesto em pinça se já estava pintando de verdade (> 250 ms ou > 14 px)
+    if (TT_T.size === 2 && !tPenDown) { if (tStroke && !tStroke.noop) { const f = [...TT_T.values()][0], longo = performance.now() - f.t0 > 250 || Math.hypot(f.x - f.x0, f.y - f.y0) > 14; tAbort(); if (tGest && longo) tGest.moved = true; } tStroke = null; tPan = null; const m = tMeio(), r = tcv.getBoundingClientRect(); tPin = { d0: m.d, z0: ts.zoom, mx: m.x - r.left, my: m.y - r.top, ox: ts.ox, oy: ts.oy }; return; }
     if (TT_T.size > 2) return; }
   if (tPin || (tPenDown && e.pointerType === 'touch')) return;
   if (ts.tool === 'hand' || e.button === 1 || e.button === 2 || panMode || (e.pointerType === 'touch' && st.penOnly)) { tPan = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: ts.ox, oy: ts.oy }; return; }
@@ -2232,7 +2257,10 @@ tcv.addEventListener('pointerleave', () => { if (tHover) { tHover = null; tRende
 function tUp(e) {
   if (e.pointerType === 'pen') tPenDown = false;
   const was = TT_T.delete(e.pointerId);
-  if (was && TT_T.size === 0 && tGest) { const g = tGest; tGest = null; tPin = null; tPan = null; if (!g.moved && performance.now() - g.t0 < 450 && e.type === 'pointerup') { if (g.max === 2) { tUndo(); toast('Desfeito (dois dedos)', 1200); } else if (g.max >= 3) { tRedo(); toast('Refeito (três dedos)', 1200); } } return; }
+  if (was && TT_T.size === 0 && tGest) { const g = tGest; tGest = null; tPin = null; tPan = null; gestStop(g);
+    if (!g.moved && !g.held && performance.now() - g.t0 < 450 && e.type === 'pointerup') { if (g.max === 2) tGestUndo(); else if (g.max >= 3) tGestRedo(); }
+    if (!g.moved && g.view) { ts.zoom = g.view.zoom; ts.ox = g.view.ox; ts.oy = g.view.oy; tRender(); } // foi toque, não pinça: a vista não mexe
+    return; }
   if (was && tPin && TT_T.size < 2) { tPin = null; return; }
   if (tFillPend && tFillPend.id === e.pointerId) { const f = tFillPend; tFillPend = null; if (e.type === 'pointerup' && !tGest && !tPin) tBegin(f.x, f.y, e.pointerId); return; }
   if (tPan && tPan.id === e.pointerId) { tPan = null; return; }

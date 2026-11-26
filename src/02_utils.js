@@ -51,3 +51,15 @@ function fitImage(img, w, h) { const out = new Uint8ClampedArray(w * h * 4), ox 
 function keyMagenta(img, tol = 60) { const d = new Uint8ClampedArray(img.data); for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 255) + d[i + 1] + Math.abs(d[i + 2] - 255) < tol) d[i + 3] = 0; return { width: img.width, height: img.height, data: d }; }
 const slug = () => (doc.name || 'snapforge').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'snapforge';
 
+/* Toque com vários dedos, como no Procreate: tocar com 2 desfaz e com 3 refaz; segurar parado repete, acelerando.
+   `g` é o estado do gesto ({ max, moved }), criado pelo canvas; gestArm é chamado a cada dedo que chega. */
+const GEST_HOLD_MS = 500;
+function gestArm(g, undoFn, redoFn) {
+  clearTimeout(g.hold);
+  g.hold = setTimeout(() => {
+    if (g.moved || g.done) return; g.held = true; let dt = 300;
+    const step = () => { if (g.moved || g.done) return; (g.max >= 3 ? redoFn : undoFn)(); dt = Math.max(80, dt * .82); g.rep = setTimeout(step, dt); };
+    step();
+  }, GEST_HOLD_MS);
+}
+function gestStop(g) { g.done = true; clearTimeout(g.hold); clearTimeout(g.rep); }

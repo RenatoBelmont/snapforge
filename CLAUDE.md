@@ -1,6 +1,6 @@
 # Snapforge — guia do projeto (para o Claude Code)
 
-Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.7.0**.
+Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.7.1**.
 
 Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad com Apple Pencil** e também no Windows (Chrome/Firefox). Interface 100% em **português do Brasil**.
 
@@ -32,7 +32,7 @@ src/
   00_base.js … 11_init.js   o app, concatenado em ordem alfabética
   fonts/             Silkscreen (OFL), embutida em base64 no build — sem rede
 tests/
-  e2e.js             128 verificações no navegador (Playwright + Chromium)
+  e2e.js             135 verificações no navegador (Playwright + Chromium)
   engines-vs-rust.js compara os motores JS com os binários Rust originais
   snapper-structure.js  idem, checando grade e cor-base célula a célula
   fixtures/          imagens de teste + make_fixtures.js que as gera
@@ -115,8 +115,8 @@ Tudo em `localStorage` (por navegador/aparelho), chaves com prefixo `snapforge.`
 Herdado do app Ponto Cruz do Renato. Testado e fácil de quebrar; leia antes de mexer em `06_draw_input.js` ou na entrada de `10_tilemap.js`:
 
 - **Modo "Só Pencil"** (`st.penOnly`): liga sozinho na primeira vez que um `pointerType === 'pen'` toca (`st.penSeen` evita religar). Com ele, um dedo só move a vista e dá zoom; caneta pinta. Enquanto a caneta está encostada (`PEN_DOWN`), toques são ignorados (palma).
-- **Pinça** com dois dedos = zoom + pan. Se começar durante um traço feito com o dedo, o traço é **desfeito** (`abortStroke`) **e o gesto é marcado como "movido"** para não virar desfazer por toque — bug real corrigido na 1.1.0.
-- **Toque com 2 dedos = desfazer, 3 = refazer** (sem mover > 14 px, < 450 ms).
+- **Pinça** com dois dedos = zoom + pan. Se o segundo dedo chega durante um traço feito com o dedo, o traço é **desfeito** (`abortStroke`/`tAbort`, que também devolvem a pilha de refazer). O gesto só é marcado como "movido" (pinça, sem desfazer) se o 1º dedo **já estava desenhando de verdade: > 250 ms ou > 14 px** — os dedos nunca chegam juntos na mão de verdade, e na 1.7.0 marcar sempre impedia o desfazer de 2 dedos com "Dedo pinta" (corrigido na 1.7.1).
+- **Toque com 2 dedos = desfazer, 3 = refazer, como no Procreate** (sem mover > 14 px, < 450 ms). **Segurar** 2/3 dedos parados 500 ms desfaz/refaz em sequência, acelerando (`gestArm`/`gestStop` em `02_utils.js`, usados pelo editor e pelo Tilemap). Se o gesto foi toque (não pinça), zoom e posição voltam exatamente ao valor de antes (`VIEW0`/`tView0`). Os testes mandam os dedos com 40 ms de intervalo, como na mão real.
 - **Segurar 1 dedo parado 420 ms** = conta-gotas com **lupa** (anel: metade de cima = cor sob o dedo, de baixo = cor atual). Alt+clique faz o mesmo no mouse.
 - **Balde no toque só preenche ao soltar** (`fillPend`), para uma pinça que começa não preencher por engano.
 - Traços usam `getCoalescedEvents()` (linhas suaves com a Pencil). Pencil com hover (iPad Pro) mostra a prévia do pincel.
@@ -160,6 +160,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 
 ## Histórico
 
+- **1.7.1** — **toques com 2/3 dedos como no Procreate**: com "Dedo pinta" o toque de dois dedos não desfazia (o 1º dedo, que chega antes, começava um traço e o gesto era tratado como pinça); agora só vira pinça se o 1º dedo já desenhava há > 250 ms ou > 14 px. Segurar 2/3 dedos desfaz/refaz em sequência, acelerando; o toque não mexe mais no zoom. No Tilemap, começar um traço apagava a pilha de refazer mesmo quando o traço era cancelado ou não mudava nada (corrigido como no editor). 135 verificações.
 - **1.7.0** — Tilemap: **ferramenta de seleção** (arrastar seleciona, arrastar dentro move, copiar/recortar/colar/apagar, ⌘A, Esc, tudo com desfazer) e **tamanho de pincel** 1–8 tiles. **Barra de seleção flutuante** sobre a tela, no editor e no mapa (antes ficava na barra de comandos e, com seleção ativa, a do editor transbordava 162 px e escondia zoom/tela cheia). Seleção, cursor e grade maior desenhados em **ameixa** (`cssRgb('--plum')`), não mais no âmbar antigo. Painel do mapa reordenado (Camadas logo abaixo do tileset). 128 verificações.
 - **1.6.0** — **importar paletas**: "Do Lospec" (link ou nome; exceção de rede da regra 4, liberada pelo Renato) e "Arquivo" (.hex, .gpl, .pal JASC/RIFF, offline; seletor sem filtro de extensão porque o Safari do iPad deixa cinza .gpl/.pal). **Pincéis**: tamanhos 1, 2, 3, 4, 5, 6, 8, 10, 12 e 16 px (botões e teclas `[` `]`), formato redondo ou quadrado em qualquer tamanho (antes os pares eram sempre quadrados), ambos salvos no aparelho. Testes com o Lospec simulado (115 verificações).
 - **1.5.0** — 8 paletas do Lospec embutidas (RETURN 20, Minty chip, CC-29, Resurrect 64, SLSO8, Lost Century, Twilight 5, CafeArisuki), conferidas cor a cor com o JSON oficial e com os nomes/autores de lá. Avaliada a API do Lospec (ver Backlog).

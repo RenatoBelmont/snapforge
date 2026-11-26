@@ -254,6 +254,37 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   await p.evaluate(() => { selRect = { x: 1, y: 1, w: 3, h: 3 }; updateBar(); });
   ok(await p.evaluate(() => { const b = $('#bar'), f = $('#selBar').getBoundingClientRect(), a = $('#area').getBoundingClientRect(); return b.scrollWidth <= b.clientWidth && f.width > 0 && f.left >= a.left && f.right <= a.right; }), 'com seleção no editor a barra de comandos continua numa linha (antes transbordava 162 px)');
   await p.evaluate(() => { selRect = null; updateBar(); render(); });
+  // ---- toques com 2/3 dedos como no Procreate (1.7.1): dedos chegando em tempos diferentes, com "Dedo pinta"
+  {
+    const tap = async (pts, gap = 40, hold = 80) => { for (let i = 1; i <= pts.length; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: T(pts.slice(0, i)) }); await sleep(gap); } await sleep(hold); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await sleep(120); };
+    const prep = () => p.evaluate(() => { setPenOnly(false); newDoc(32, 32); fit(); fullRefresh(); setTool('pencil'); for (let i = 0; i < 6; i++) { pushHist(); plotRaw(px(), i, 0, [255, 0, 0, 255]); } fullRefresh(); });
+    const npx = () => p.evaluate(() => { let n = 0; const a = px(); for (let i = 3; i < a.length; i += 4) if (a[i]) n++; return n; });
+    const bx = await p.locator('#cv').boundingBox(), cx0 = bx.x + bx.width / 2, cy0 = bx.y + bx.height / 2;
+    await prep(); const v0 = await p.evaluate(() => [st.zoom, st.ox, st.oy].join());
+    await tap([[cx0, cy0], [cx0 + 70, cy0 + 6]]);
+    ok(await npx() === 5 && await p.evaluate(() => [st.zoom, st.ox, st.oy].join()) === v0, 'dois dedos (um depois do outro) com "Dedo pinta" desfazem, sem deixar ponto nem mexer a vista');
+    await tap([[cx0, cy0], [cx0 + 70, cy0], [cx0 + 140, cy0]]);
+    ok(await npx() === 6, 'três dedos (um depois do outro) refazem');
+    await tap([[cx0, cy0], [cx0 + 70, cy0]], 40, 1500);
+    const n2 = await npx(); ok(n2 <= 2, `segurar dois dedos desfaz em sequência, acelerando (6 → ${n2})`);
+    await tap([[cx0, cy0], [cx0 + 70, cy0], [cx0 + 140, cy0]], 40, 1500);
+    const n3 = await npx(); ok(n3 >= 5, `segurar três dedos refaz em sequência (${n2} → ${n3})`);
+    // desenhar de verdade com o dedo e então pôr o segundo dedo = pinça: o traço é cancelado e nada é desfeito
+    await prep(); await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: T([[cx0, cy0]]) });
+    for (let i = 1; i <= 4; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: T([[cx0 + i * 15, cy0]]) }); await sleep(80); }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: T([[cx0 + 60, cy0], [cx0 + 160, cy0]]) }); await sleep(60);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await sleep(120);
+    ok(await npx() === 6, 'pinça depois de desenhar com o dedo cancela o traço e não desfaz nada');
+    // Tilemap: mesma coisa
+    await p.click('.tab[data-v=tile]'); await sleep(300);
+    await p.evaluate(() => { tm.layers.forEach(L => { L.data.fill(-1); if (L.cells) L.cells.fill(0); }); ts.layer = 0; tm.layers[0].visible = true; setTBrush(1); ts.sel = { x: 1, y: 0, w: 1, h: 1 }; setTTool('stamp'); for (let i = 0; i < 4; i++) { tPush(); tm.layers[0].data[i] = 1; } mapDirty = true; tFit(); });
+    await sleep(120); const tbx = await p.locator('#tcv').boundingBox(), tcx0 = tbx.x + tbx.width / 2, tcy0 = tbx.y + tbx.height / 2, tc4 = () => p.evaluate(() => tm.layers[0].data.filter(v => v >= 0).length);
+    await tap([[tcx0, tcy0], [tcx0 + 70, tcy0]]);
+    ok(await tc4() === 3, 'Tilemap: dois dedos (um depois do outro) desfazem sem deixar tile');
+    await tap([[tcx0, tcy0], [tcx0 + 70, tcy0], [tcx0 + 140, tcy0]]);
+    ok(await tc4() === 4, 'Tilemap: três dedos refazem');
+    await p.click('.tab[data-v=editor]'); await sleep(150);
+  }
   // ---- correções da 1.2.1
   await p.click('.tab[data-v=snap]'); await sleep(150);
   const nl0 = await p.evaluate(() => doc.layers.length);

@@ -119,7 +119,9 @@ function abortStroke() {
 function refreshAfterEdit() { render(); renderLayers(); renderFrames(); renderFaixa(); updateBar(); markDirty(); }
 
 /* ======================= entrada: Apple Pencil, toque, mouse ======================= */
-const TOUCHES = new Map(); let PEN_DOWN = false, pinch = null, LP = null, CG = null, GEST = null, fillPend = null, panMode = false;
+const TOUCHES = new Map(); let PEN_DOWN = false, pinch = null, LP = null, CG = null, GEST = null, fillPend = null, panMode = false, VIEW0 = null;
+const gestUndo = () => { if (!hist.length) return toast('Nada para desfazer', 900); undo(); toast('Desfeito (dois dedos)', 900); };
+const gestRedo = () => { if (!future.length) return toast('Nada para refazer', 900); redo(); toast('Refeito (três dedos)', 900); };
 function toPix(cx_, cy_) { const r = cv.getBoundingClientRect(); return [Math.floor((cx_ - r.left - st.ox) / st.zoom), Math.floor((cy_ - r.top - st.oy) / st.zoom)]; }
 function compositeAt(x, y) { if (!inside(x, y)) return null; const c = composite(cur.frame), o = (y * doc.w + x) * 4; return [c.data[o], c.data[o + 1], c.data[o + 2], c.data[o + 3]]; }
 function lupaEm(clientX, clientY) {
@@ -145,11 +147,16 @@ cv.addEventListener('pointerdown', (e) => {
   try { cv.setPointerCapture(e.pointerId); } catch {}
   if (e.pointerType === 'pen') { PEN_DOWN = true; pinch = null; if (stroke && stroke.pan) stroke = null; if (!st.penSeen && !st.penOnly) setPenOnly(true, true); }
   if (e.pointerType === 'touch') {
-    TOUCHES.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
-    if (TOUCHES.size === 1) { clearTimeout(LP && LP.t); GEST = null;
+    TOUCHES.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now() });
+    if (TOUCHES.size === 1) { clearTimeout(LP && LP.t); if (GEST) gestStop(GEST); GEST = null; VIEW0 = { zoom: st.zoom, ox: st.ox, oy: st.oy };
       LP = { id: e.pointerId, x: e.clientX, y: e.clientY, t: setTimeout(() => { if (LP && TOUCHES.size === 1 && !pinch) { if (strokeActive()) abortStroke(); if (stroke && stroke.pan) stroke = null; fillPend = null; startPick(LP.id, LP.x, LP.y); LP = null; } }, 420) }; }
-    else { if (LP) { clearTimeout(LP.t); LP = null; } if (CG) endPick(false); fillPend = null; if (!GEST) GEST = { t0: performance.now(), max: 0, moved: false }; GEST.max = Math.max(GEST.max, TOUCHES.size); }
-    if (TOUCHES.size === 2 && !PEN_DOWN) { if (strokeActive()) { abortStroke(); if (GEST) GEST.moved = true; } stroke = null; const m = meio(), r = cv.getBoundingClientRect(); pinch = { d0: m.d, z0: st.zoom, mx: m.x - r.left, my: m.y - r.top, ox: st.ox, oy: st.oy }; return; }
+    else { if (LP) { clearTimeout(LP.t); LP = null; } if (CG) endPick(false); fillPend = null; if (!GEST) GEST = { t0: performance.now(), max: 0, moved: false, view: VIEW0 }; GEST.max = Math.max(GEST.max, TOUCHES.size);
+      if (!PEN_DOWN) gestArm(GEST, gestUndo, gestRedo); }
+    if (TOUCHES.size === 2 && !PEN_DOWN) {
+      // Os dedos nunca chegam juntos: com "Dedo pinta", o 1º já começou um traço. Ele é desfeito sempre, mas só vira pinça (sem desfazer)
+      // se já estava desenhando de verdade (> 250 ms ou > 14 px); senão é o começo de um toque de 2/3 dedos, como no Procreate.
+      if (strokeActive()) { const f = [...TOUCHES.values()][0], longo = performance.now() - f.t0 > 250 || Math.hypot(f.x - f.x0, f.y - f.y0) > 14; abortStroke(); if (GEST && longo) GEST.moved = true; }
+      stroke = null; const m = meio(), r = cv.getBoundingClientRect(); pinch = { d0: m.d, z0: st.zoom, mx: m.x - r.left, my: m.y - r.top, ox: st.ox, oy: st.oy }; return; }
     if (TOUCHES.size > 2) return;
   }
   if (pinch || PEN_DOWN && e.pointerType === 'touch') return;
@@ -179,8 +186,9 @@ function endPtr(e) {
   if (CG && e.pointerId === CG.id) { endPick(e.type === 'pointerup'); TOUCHES.delete(e.pointerId); return; }
   if (LP && LP.id === e.pointerId) { clearTimeout(LP.t); LP = null; }
   const wasTouch = TOUCHES.delete(e.pointerId);
-  if (wasTouch && TOUCHES.size === 0 && GEST) { const g = GEST; GEST = null; pinch = null;
-    if (!g.moved && performance.now() - g.t0 < 450 && e.type === 'pointerup') { if (g.max === 2) { undo(); toast('Desfeito (dois dedos)', 1200); } else if (g.max >= 3) { redo(); toast('Refeito (três dedos)', 1200); } }
+  if (wasTouch && TOUCHES.size === 0 && GEST) { const g = GEST; GEST = null; pinch = null; gestStop(g);
+    if (!g.moved && !g.held && performance.now() - g.t0 < 450 && e.type === 'pointerup') { if (g.max === 2) gestUndo(); else if (g.max >= 3) gestRedo(); }
+    if (!g.moved && g.view) { st.zoom = g.view.zoom; st.ox = g.view.ox; st.oy = g.view.oy; render(); } // foi toque, não pinça: a vista volta exatamente ao que era
     stroke = null; return; }
   if (wasTouch && pinch && TOUCHES.size < 2) { pinch = null; stroke = null; return; }
   if (fillPend && fillPend.id === e.pointerId) { const f = fillPend; fillPend = null; if (e.type === 'pointerup' && !GEST && !pinch) beginStroke(f.x, f.y); return; }

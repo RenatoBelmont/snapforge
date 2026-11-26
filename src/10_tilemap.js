@@ -25,7 +25,8 @@ function addTLayer(auto, name, silent) {
 }
 const tSnap = () => ({ name: tm.name, tileset: tm.tileset, mw: tm.mw, mh: tm.mh, tw: tm.tw, th: tm.th, layer: ts.layer, msel: ts.msel && { ...ts.msel }, layers: tm.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })) });
 const tRestore = (s) => { const reload = s.tileset !== tm.tileset || s.tw !== tm.tw || s.th !== tm.th; Object.assign(tm, { name: s.name, tileset: s.tileset, mw: s.mw, mh: s.mh, tw: s.tw, th: s.th }); if (reload) loadTsImage(() => { renderTSide(); tRender(); }); tm.layers = s.layers.map(L => ({ ...L, data: new Int32Array(L.data), cells: L.cells && new Uint8Array(L.cells), rules: L.rules && L.rules.slice() })); ts.layer = clamp(s.layer, 0, tm.layers.length - 1); ts.msel = s.msel ? { ...s.msel } : null; mapDirty = true; if (typeof renderTSelBar === 'function') renderTSelBar(); };
-function tPush() { tHist.push(tSnap()); if (tHist.length > 60) tHist.shift(); tFuture.length = 0; }
+/** Guarda o estado atual. Devolve a pilha de refazer descartada, para o traço que não mudar nada (ou for cancelado) devolvê-la. */
+function tPush() { tHist.push(tSnap()); if (tHist.length > 60) tHist.shift(); return tFuture.splice(0); }
 function tUndo() { if (!tHist.length) return toast('Nada para desfazer'); tFuture.push(tSnap()); tRestore(tHist.pop()); renderTSide(); tRender(); tSave(); }
 function tRedo() { if (!tFuture.length) return toast('Nada para refazer'); tHist.push(tSnap()); tRestore(tFuture.pop()); renderTSide(); tRender(); tSave(); }
 
@@ -160,12 +161,12 @@ function tBegin(x, y, id) {
   if (ts.tool === 'select') {
     if (tInSel(x, y) && tSelClip()) { // arrastar dentro da seleção move o conteúdo
       if (!L.visible) { toast('A camada está oculta'); tStroke = { noop: true }; return; }
-      tPush(); tStroke = { id, move: true, x0: x, y0: y, sel0: { ...tSelClip() }, base: (L.auto ? L.cells : L.data).slice(), changed: false }; return; }
+      const fut = tPush(); tStroke = { id, fut, move: true, x0: x, y0: y, sel0: { ...tSelClip() }, base: (L.auto ? L.cells : L.data).slice(), changed: false }; return; }
     tStroke = { id, select: true, x0: x, y0: y, prev: ts.msel, moved: false }; ts.msel = { x: clamp(x, 0, tm.mw - 1), y: clamp(y, 0, tm.mh - 1), w: 1, h: 1 }; tRender(); return; // selecionar não entra no desfazer
   }
   if (!L.visible) { toast('A camada está oculta'); tStroke = { noop: true }; return; }
   if (ts.tool === 'pick') { const i = y * tm.mw + x; if (tIn(x, y)) { const t = tileAt(L, i); if (t >= 0) { ts.sel = { x: t % tsCols, y: Math.floor(t / tsCols), w: 1, h: 1 }; setTTool('stamp'); renderTileset(); } } tStroke = { noop: true }; return; }
-  tPush(); tStroke = { id, lx: x, ly: y, anchor: [x, y], changed: false };
+  const fut = tPush(); tStroke = { id, fut, lx: x, ly: y, anchor: [x, y], changed: false };
   if (ts.tool === 'fill') { tStroke.changed = tFill(x, y); tEnd(); return; } // sem isso o tEnd achava que nada mudou: não redesenhava e jogava fora o desfazer
   if (ts.tool === 'rect') { tRect = { x0: x, y0: y, x1: x, y1: y }; tRender(); return; }
   tPaintAt(x, y, ts.tool === 'erase', null); tStroke.changed = true; mapDirty = true; tRender();
@@ -186,24 +187,28 @@ function tEnd() {
   if (tRect) { const a = Math.min(tRect.x0, tRect.x1), b = Math.min(tRect.y0, tRect.y1), c = Math.max(tRect.x0, tRect.x1), d = Math.max(tRect.y0, tRect.y1), L = tm.layers[ts.layer];
     for (let y = b; y <= d; y++) for (let x = a; x <= c; x++) { if (L.auto) tSet(L, x, y, 1); else if (ts.random) tStampAt(x, y, false, null); else tStampAt(x, y, false, [a, b]); }
     tRect = null; tStroke.changed = true; mapDirty = true; }
-  if (!tStroke.changed) tHist.pop(); else mapDirty = true;
+  if (!tStroke.changed) { tHist.pop(); if (tStroke.fut) tFuture.push(...tStroke.fut); } else mapDirty = true; // nada mudou: o refazer continua
   tStroke = null; tRender(); tSave(); renderTLayers();
 }
 function tAbort() {
   if (tStroke && tStroke.select) ts.msel = tStroke.prev; // a pinça começou: volta a seleção que existia
-  else if (tStroke && !tStroke.noop && tHist.length) { tRestore(tHist.pop()); }
+  else if (tStroke && !tStroke.noop && tHist.length) { tRestore(tHist.pop()); if (tStroke.fut) tFuture.push(...tStroke.fut); } // traço cancelado (ex.: virou gesto de dedos): devolve o refazer
   tStroke = null; tRect = null; tRender(); renderTSelBar();
 }
 
 /* ---------- entrada (mesmos gestos do editor) ---------- */
-const TT_T = new Map(); let tPin = null, tGest = null, tPenDown = false, tPan = null, tFillPend = null;
+const TT_T = new Map(); let tPin = null, tGest = null, tPenDown = false, tPan = null, tFillPend = null, tView0 = null;
+const tGestUndo = () => { if (!tHist.length) return toast('Nada para desfazer', 900); tUndo(); toast('Desfeito (dois dedos)', 900); };
+const tGestRedo = () => { if (!tFuture.length) return toast('Nada para refazer', 900); tRedo(); toast('Refeito (três dedos)', 900); };
 const tMeio = () => { const p = [...TT_T.values()]; return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2, d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) || 1 }; };
 tcv.addEventListener('pointerdown', (e) => {
   try { tcv.setPointerCapture(e.pointerId); } catch {}
   if (e.pointerType === 'pen') { tPenDown = true; tPin = null; tPan = null; if (!st.penSeen && !st.penOnly) setPenOnly(true, true); }
-  if (e.pointerType === 'touch') { TT_T.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
-    if (TT_T.size > 1) { tFillPend = null; if (!tGest) tGest = { t0: performance.now(), max: 0, moved: false }; tGest.max = Math.max(tGest.max, TT_T.size); } else tGest = null;
-    if (TT_T.size === 2 && !tPenDown) { if (tStroke && !tStroke.noop) { tAbort(); if (tGest) tGest.moved = true; } tStroke = null; tPan = null; const m = tMeio(), r = tcv.getBoundingClientRect(); tPin = { d0: m.d, z0: ts.zoom, mx: m.x - r.left, my: m.y - r.top, ox: ts.ox, oy: ts.oy }; return; }
+  if (e.pointerType === 'touch') { TT_T.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now() });
+    if (TT_T.size > 1) { tFillPend = null; if (!tGest) tGest = { t0: performance.now(), max: 0, moved: false, view: tView0 }; tGest.max = Math.max(tGest.max, TT_T.size); if (!tPenDown) gestArm(tGest, tGestUndo, tGestRedo); }
+    else { if (tGest) gestStop(tGest); tGest = null; tView0 = { zoom: ts.zoom, ox: ts.ox, oy: ts.oy }; }
+    // mesma regra do editor: o 1º dedo só transforma o gesto em pinça se já estava pintando de verdade (> 250 ms ou > 14 px)
+    if (TT_T.size === 2 && !tPenDown) { if (tStroke && !tStroke.noop) { const f = [...TT_T.values()][0], longo = performance.now() - f.t0 > 250 || Math.hypot(f.x - f.x0, f.y - f.y0) > 14; tAbort(); if (tGest && longo) tGest.moved = true; } tStroke = null; tPan = null; const m = tMeio(), r = tcv.getBoundingClientRect(); tPin = { d0: m.d, z0: ts.zoom, mx: m.x - r.left, my: m.y - r.top, ox: ts.ox, oy: ts.oy }; return; }
     if (TT_T.size > 2) return; }
   if (tPin || (tPenDown && e.pointerType === 'touch')) return;
   if (ts.tool === 'hand' || e.button === 1 || e.button === 2 || panMode || (e.pointerType === 'touch' && st.penOnly)) { tPan = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: ts.ox, oy: ts.oy }; return; }
@@ -223,7 +228,10 @@ tcv.addEventListener('pointerleave', () => { if (tHover) { tHover = null; tRende
 function tUp(e) {
   if (e.pointerType === 'pen') tPenDown = false;
   const was = TT_T.delete(e.pointerId);
-  if (was && TT_T.size === 0 && tGest) { const g = tGest; tGest = null; tPin = null; tPan = null; if (!g.moved && performance.now() - g.t0 < 450 && e.type === 'pointerup') { if (g.max === 2) { tUndo(); toast('Desfeito (dois dedos)', 1200); } else if (g.max >= 3) { tRedo(); toast('Refeito (três dedos)', 1200); } } return; }
+  if (was && TT_T.size === 0 && tGest) { const g = tGest; tGest = null; tPin = null; tPan = null; gestStop(g);
+    if (!g.moved && !g.held && performance.now() - g.t0 < 450 && e.type === 'pointerup') { if (g.max === 2) tGestUndo(); else if (g.max >= 3) tGestRedo(); }
+    if (!g.moved && g.view) { ts.zoom = g.view.zoom; ts.ox = g.view.ox; ts.oy = g.view.oy; tRender(); } // foi toque, não pinça: a vista não mexe
+    return; }
   if (was && tPin && TT_T.size < 2) { tPin = null; return; }
   if (tFillPend && tFillPend.id === e.pointerId) { const f = tFillPend; tFillPend = null; if (e.type === 'pointerup' && !tGest && !tPin) tBegin(f.x, f.y, e.pointerId); return; }
   if (tPan && tPan.id === e.pointerId) { tPan = null; return; }
