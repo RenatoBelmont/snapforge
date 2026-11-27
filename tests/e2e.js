@@ -380,6 +380,25 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   await p.click('[data-tf=new]'); await sleep(100); await p.click('#tmS [data-n="16"]'); ok(await p.evaluate(() => $('#tmS .on').dataset.n) === '16', 'botões de tamanho do "Novo mapa" respondem');
   await p.click('#mBox .btn.pri'); await sleep(200); ok(await p.evaluate(() => tm.mw) === 16, 'novo mapa sai com o tamanho escolhido');
   await p.keyboard.press('Control+z'); await sleep(100); ok(await p.evaluate(() => tm.mw) === 32, 'desfazer volta ao mapa anterior');
+  // ---- 1.12.0: cor principal (botão esquerdo) e secundária (botão direito)
+  await p.click('.tab[data-v=editor]'); await sleep(150);
+  await p.evaluate(() => { newDoc(16, 16, 'Cores'); setTool('pencil'); fit(); fullRefresh(); }); await sleep(150); at = await geo();
+  const palC = await p.evaluate(() => palList(palName).slice(0, 3));
+  await p.click(`#pRow [data-pc2="${palC[0]}"]`); await p.click(`#pRow [data-pc2="${palC[1]}"]`);
+  ok(await p.evaluate((pc) => rgb2hex(...st.color.slice(0, 3)) === pc[1] && rgb2hex(...st.color2.slice(0, 3)) === pc[0], palC), 'trocar a cor manda a anterior para a secundária');
+  await p.mouse.move(...at(2, 2)); await p.mouse.down({ button: 'right' }); await p.mouse.move(...at(6, 2), { steps: 5 }); await p.mouse.up({ button: 'right' }); await sleep(80);
+  await p.mouse.move(...at(2, 5)); await p.mouse.down(); await p.mouse.move(...at(6, 5), { steps: 5 }); await p.mouse.up(); await sleep(80);
+  ok(await p.evaluate((pc) => { const a = doc.frames[cur.frame][cur.layer], hx = (x, y) => { const o = (y * doc.w + x) * 4; return a[o + 3] ? rgb2hex(a[o], a[o + 1], a[o + 2]) : null; }; return hx(2, 2) === pc[0] && hx(6, 2) === pc[0] && hx(2, 5) === pc[1] && hx(6, 5) === pc[1]; }, palC), 'botão direito pinta com a secundária, esquerdo com a principal');
+  await p.keyboard.press('Control+z'); await p.keyboard.press('Control+z'); await sleep(80); ok((await cnt()) === 0, 'traço do botão direito entra no desfazer'); await p.keyboard.press('Control+Shift+z'); await p.keyboard.press('Control+Shift+z');
+  await p.click('#pRow [data-pr="swap"]'); ok(await p.evaluate((pc) => rgb2hex(...st.color.slice(0, 3)) === pc[0] && rgb2hex(...st.color2.slice(0, 3)) === pc[1], palC), 'tocar na secundária troca as duas (iPad)');
+  await p.keyboard.press('w'); ok(await p.evaluate((pc) => rgb2hex(...st.color.slice(0, 3)) === pc[1] && rgb2hex(...st.color2.slice(0, 3)) === pc[0], palC), 'tecla W troca as cores');
+  await p.click(`#pRow [data-pc2="${palC[2]}"]`, { button: 'right' });
+  ok(await p.evaluate((pc) => rgb2hex(...st.color.slice(0, 3)) === pc[1] && rgb2hex(...st.color2.slice(0, 3)) === pc[2], palC), 'botão direito numa cor da paleta escolhe a secundária sem mexer na principal');
+  ok(await p.evaluate(() => { const c0 = st.color.slice(); setColor([10, 20, 30, 255], true); setColor([40, 50, 60, 255], true); setColor([70, 80, 90, 255], true); commitColor(); return st.color2.every((v, i) => v === c0[i]) && st.color[0] === 70; }), 'ajuste ao vivo (seletor/hex) conta como uma troca só');
+  await p.evaluate(() => { const a = doc.frames[cur.frame][cur.layer]; a.fill(0); a.set([1, 2, 3, 255], (8 * 16 + 8) * 4); render(); }); at = await geo();
+  await p.keyboard.down('Alt'); await p.mouse.move(...at(8, 8)); await p.mouse.down({ button: 'right' }); await p.mouse.up({ button: 'right' }); await p.keyboard.up('Alt'); await sleep(80);
+  ok(await p.evaluate(() => st.color2.slice(0, 3).join() === '1,2,3' && st.color[0] === 70), 'Alt + botão direito pega a cor para a secundária');
+  ok(await p.evaluate(() => $$('.duo .cur2').length >= 2), 'secundária aparece no módulo Cor e na fileira de paleta');
   // ---- 1.11.0: aba VFX (efeitos animados em pixel art)
   await p.click('.tab[data-v=vfx]'); await sleep(300);
   ok(await p.evaluate(() => vRes && vRes.frames.length === vDef().frames && $$('#xStrip canvas').length === vRes.frames.length), 'VFX abre com o efeito renderizado e a tira de quadros');

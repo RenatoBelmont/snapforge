@@ -23,7 +23,7 @@ window.addEventListener('pagehide', flushSaves); window.addEventListener('before
 (function init() {
   $('#ver').textContent = 'v' + VERSION; paintIcons(); setTheme(LS.get('dark', true));
   try { const saved = LS.get('doc', null); if (saved) deserialize(saved); else newDoc(32, 32); } catch { newDoc(32, 32); }
-  const p0 = palList(palName)[0]; st.color = p0 ? [...hex2rgb(p0), 255] : [0, 0, 0, 255];
+  const p0 = palList(palName)[0]; st.color = p0 ? [...hex2rgb(p0), 255] : [0, 0, 0, 255]; const p1 = palList(palName).at(-1); st.color2 = p1 ? [...hex2rgb(p1), 255] : [255, 255, 255, 255];
   buildRail(); buildSide(); setTool('pencil'); renderSubtitle(); updateBar(); setStatus('saved');
   initTilemap();
   let lastW = 0; new ResizeObserver(() => { if (!viewOn('editor')) return; const w = area.clientWidth; resizeCanvas(); if (lastW && Math.abs(w - lastW) > 60) fit(); lastW = w; }).observe(area);

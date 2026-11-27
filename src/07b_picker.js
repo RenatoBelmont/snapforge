@@ -2,7 +2,7 @@
 function rgbToHsv(r, g, b) { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let h = 0; if (d) { if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h *= 60; if (h < 0) h += 360; } return { h, s: mx ? d / mx : 0, v: mx }; }
 function hsvToRgb(h, s, v) { const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c; let r, g, b; if (h < 60) [r, g, b] = [c, x, 0]; else if (h < 120) [r, g, b] = [x, c, 0]; else if (h < 180) [r, g, b] = [0, c, x]; else if (h < 240) [r, g, b] = [0, x, c]; else if (h < 300) [r, g, b] = [x, 0, c]; else [r, g, b] = [c, 0, x]; return [(r + m) * 255, (g + m) * 255, (b + m) * 255]; }
 let cpEl = null;
-function closeColorPicker() { if (!cpEl) return; cpEl.remove(); cpEl = null; pushRecent(rgb2hex(...st.color.slice(0, 3))); renderColor(); }
+function closeColorPicker() { if (!cpEl) return; cpEl.remove(); cpEl = null; commitColor(); pushRecent(rgb2hex(...st.color.slice(0, 3))); renderColor(); }
 function openColorPicker(anchor) {
   if (cpEl) { closeColorPicker(); return; }
   let hsv = rgbToHsv(st.color[0], st.color[1], st.color[2]); const pal = palList(palName);

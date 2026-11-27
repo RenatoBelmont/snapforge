@@ -61,7 +61,8 @@ function floodFill(x, y, c) {
   while (stack.length) { const yy = stack.pop(), xx = stack.pop(); if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue; const i = yy * w + xx; if (seen[i] || !eq(i * 4)) continue; seen[i] = 1; plotRaw(a, xx, yy, c); stack.push(xx + 1, yy, xx - 1, yy, xx, yy + 1, xx, yy - 1); }
   return true;
 }
-const drawColor = () => st.tool === 'eraser' ? [0, 0, 0, 0] : st.color;
+// botão direito do mouse pinta com a cor secundária (st.alt é marcado no pointerdown)
+const drawColor = () => st.tool === 'eraser' ? [0, 0, 0, 0] : st.alt ? st.color2 : st.color;
 const layerBlocked = () => { const L = doc.layers[cur.layer]; if (L.locked) { toast('A camada está travada'); return true; } if (!L.visible) { toast('A camada está oculta'); return true; } return false; };
 
 let stroke = null; const strokeActive = () => !!(stroke && !stroke.noop && !stroke.pan);
@@ -133,12 +134,12 @@ function lupaEm(clientX, clientY) {
   g.drawImage(cv, (clientX - r.left) * dpr - src / 2, (clientY - r.top) * dpr - src / 2, src, src, 0, 0, S, S);
   const cel = S * st.zoom * dpr / src, ox = R0 - ((clientX - r.left) * dpr - (st.ox + x * st.zoom) * dpr) * S / src, oy = R0 - ((clientY - r.top) * dpr - (st.oy + y * st.zoom) * dpr) * S / src;
   g.strokeStyle = '#fff'; g.lineWidth = 3; g.strokeRect(ox, oy, cel, cel); g.restore();
-  const nova = CG.cand && CG.cand[3] ? rgb2hex(...CG.cand) : '#00000000', velha = rgb2hex(...st.color);
+  const nova = CG.cand && CG.cand[3] ? rgb2hex(...CG.cand) : '#00000000', velha = rgb2hex(...(CG.alt ? st.color2 : st.color));
   g.lineWidth = 20; g.strokeStyle = CG.cand && CG.cand[3] ? nova : 'rgba(128,128,128,.4)'; g.beginPath(); g.arc(R0, R0, R0 - 12, Math.PI, 0); g.stroke(); g.strokeStyle = velha; g.beginPath(); g.arc(R0, R0, R0 - 12, 0, Math.PI); g.stroke();
   g.lineWidth = 2; g.strokeStyle = 'rgba(0,0,0,.5)'; g.beginPath(); g.arc(R0, R0, R0 - 2, 0, 7); g.stroke(); g.beginPath(); g.arc(R0, R0, R0 - 22, 0, 7); g.stroke();
 }
-function startPick(id, x, y) { CG = { id }; lupaEm(x, y); }
-function endPick(commit) { if (!CG) return; const c = CG.cand; CG = null; $('#lupa').style.display = 'none'; if (commit && c && c[3] > 0) { setColor(c); if (st.tool === 'eraser' || st.tool === 'pick') setTool('pencil'); } }
+function startPick(id, x, y, alt) { CG = { id, alt: !!alt }; lupaEm(x, y); }
+function endPick(commit) { if (!CG) return; const c = CG.cand, alt = CG.alt; CG = null; $('#lupa').style.display = 'none'; if (commit && c && c[3] > 0 && alt) { st.color2 = c.slice(); renderColor(); renderFaixa(); return; } if (commit && c && c[3] > 0) { setColor(c); if (st.tool === 'eraser' || st.tool === 'pick') setTool('pencil'); } }
 function setPenOnly(on, auto) { st.penOnly = on; st.penSeen = true; LS.set('penOnly', on); LS.set('penSeen', true); updateBar(); renderBrush(); if (auto) toast('Apple Pencil detectada: agora só a caneta pinta; o dedo move e dá zoom', 3600); }
 const ehDedo = (e) => e.pointerType === 'touch' && st.penOnly;
 const meio = () => { const p = [...TOUCHES.values()]; return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2, d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) || 1 }; };
@@ -160,10 +161,11 @@ cv.addEventListener('pointerdown', (e) => {
     if (TOUCHES.size > 2) return;
   }
   if (pinch || PEN_DOWN && e.pointerType === 'touch') return;
-  if (e.pointerType === 'mouse' && e.altKey) { startPick(e.pointerId, e.clientX, e.clientY); return; }
-  if (st.tool === 'hand' || e.button === 1 || e.button === 2 || panMode || ehDedo(e)) { stroke = { pan: true, id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: st.ox, oy: st.oy }; return; }
+  st.alt = e.pointerType === 'mouse' && e.button === 2;
+  if (e.pointerType === 'mouse' && e.altKey) { startPick(e.pointerId, e.clientX, e.clientY, st.alt); return; }
+  if (st.tool === 'hand' || e.button === 1 || (e.button === 2 && ['hand', 'select', 'move'].includes(st.tool)) || panMode || ehDedo(e)) { stroke = { pan: true, id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: st.ox, oy: st.oy }; return; }
   const [x, y] = toPix(e.clientX, e.clientY);
-  if (st.tool === 'pick') { startPick(e.pointerId, e.clientX, e.clientY); return; }
+  if (st.tool === 'pick') { startPick(e.pointerId, e.clientX, e.clientY, st.alt); return; }
   if (st.tool === 'fill' && e.pointerType === 'touch') { fillPend = { id: e.pointerId, x, y }; return; }
   stroke = null; beginStroke(x, y); if (stroke) stroke.id = e.pointerId;
 });

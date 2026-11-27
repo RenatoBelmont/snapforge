@@ -57,7 +57,8 @@ let palPick = null;
 function renderColor() {
   const b = $('#cb-cor'); if (!b) return; const c = st.color, hex = rgb2hex(c[0], c[1], c[2]), pal = palList(palName);
   st.swatch = pal.indexOf(hex);
-  b.innerHTML = `<div class="colors"><button class="cur checker" id="curColor" title="Abrir seletor de cor"><i style="background:rgba(${c[0]},${c[1]},${c[2]},${c[3] / 255})"></i></button>
+  const c2 = st.color2;
+  b.innerHTML = `<div class="colors"><div class="duo"><button class="cur checker" id="curColor" title="Cor principal (botão esquerdo) — abrir seletor de cor"><i style="background:rgba(${c[0]},${c[1]},${c[2]},${c[3] / 255})"></i></button><button class="cur2 checker" id="cur2Color" title="Cor secundária (botão direito) — toque para trocar (W)" aria-label="Cor secundária ${rgb2hex(c2[0], c2[1], c2[2])}, trocar"><i style="background:rgba(${c2[0]},${c2[1]},${c2[2]},${c2[3] / 255})"></i></button></div>
       <div class="stack" style="gap:4px;flex:1"><input class="input-field mono" id="hexIn" maxlength="7" value="${hex}" aria-label="Cor em hex"><div class="row"><span class="small muted" style="width:44px">Opac.</span><input type="range" id="alphaIn" min="0" max="255" value="${c[3]}"></div></div></div>
     <div class="row"><div id="palPickHost" style="flex:1;min-width:0"></div>${tbx2('palAdd', 'plus', 'Adicionar a cor atual à paleta')}${tbx2('palDel', 'trash', 'Remover a cor selecionada da paleta', 'danger')}</div>
     <div class="swatches">${pal.map((h, i) => `<button class="sw${i === st.swatch ? ' on' : ''}" style="background:${h}" data-sw="${i}" title="${h}"></button>`).join('')}</div>
@@ -65,12 +66,18 @@ function renderColor() {
     <div class="row wrap"><button class="btn sm" data-pc="palFromImg">Extrair do desenho</button><button class="btn sm" data-pc="palHex">Colar hex</button><button class="btn sm" data-pc="palLospec" title="Importar uma paleta do Lospec pelo link ou pelo nome (precisa de internet)">${ico('import')}Do Lospec</button><button class="btn sm" data-pc="palFile" title="Abrir arquivo de paleta .hex, .gpl ou .pal (funciona sem internet)">${ico('folder')}Arquivo</button></div>`;
   palPick = palettePicker($('#palPickHost'), { value: palName, onChange: (v) => { palName = v; LS.set('palName', palName); st.swatch = -1; renderColor(); renderFaixa(); } });
   $('#hexIn').addEventListener('input', (e) => { let v = e.target.value.trim(); if (v[0] !== '#') v = '#' + v; if (/^#[0-9a-f]{6}$/i.test(v)) setColor([...hex2rgb(v), st.color[3]], true); });
-  $('#hexIn').addEventListener('change', () => { pushRecent(rgb2hex(...st.color.slice(0, 3))); renderColor(); });
+  $('#hexIn').addEventListener('change', () => { commitColor(); pushRecent(rgb2hex(...st.color.slice(0, 3))); renderColor(); });
   $('#alphaIn').addEventListener('input', (e) => setColor([st.color[0], st.color[1], st.color[2], +e.target.value], true));
-  $('#curColor').onclick = () => openColorPicker($('#curColor'));
+  $('#curColor').onclick = () => openColorPicker($('#curColor')); $('#cur2Color').onclick = swapColors;
 }
+/* Cor principal e secundária: trocar a principal manda a anterior para a secundária (botão direito do mouse).
+   Mudanças "ao vivo" (seletor, hex, opacidade) contam como uma troca só: a anterior é guardada na primeira e entregue em commitColor(). */
+let colorPrev = null;
+function commitColor() { const p = colorPrev; colorPrev = null; if (p && p.some((v, i) => v !== st.color[i])) st.color2 = p; }
+function swapColors() { colorPrev = null; [st.color, st.color2] = [st.color2, st.color]; if (st.tool === 'eraser') setTool('pencil'); renderColor(); renderFaixa(); }
 function setColor(c, live) {
-  st.color = c.slice(); if (st.tool === 'eraser' && !live) setTool('pencil');
+  if (!colorPrev) colorPrev = st.color.slice();
+  st.color = c.slice(); if (!live) commitColor(); if (st.tool === 'eraser' && !live) setTool('pencil');
   if (live) { const i = $('#curColor i'); if (i) i.style.background = `rgba(${c[0]},${c[1]},${c[2]},${c[3] / 255})`; const h = $('#hexIn'); if (h && document.activeElement !== h) h.value = rgb2hex(c[0], c[1], c[2]); const sw = palList(palName).indexOf(rgb2hex(c[0], c[1], c[2])); $$('#cb-cor .sw').forEach((s, i) => s.classList.toggle('on', i === sw)); }
   else { pushRecent(rgb2hex(c[0], c[1], c[2])); renderColor(); }
   renderFaixa();
@@ -226,6 +233,7 @@ document.addEventListener('keydown', (e) => {
     else if (k === 'd') { e.preventDefault(); dupLayer(); } else if (k === 'a') { e.preventDefault(); selRect = { x: 0, y: 0, w: doc.w, h: doc.h }; setTool('select'); } return; }
   if (k === ' ') { panMode = true; e.preventDefault(); return; }
   if (KEYMAP[k]) { setTool(KEYMAP[k]); return; }
+  if (k === 'w') { swapColors(); return; }
   if (k === 'x') { st.mirrorX = !st.mirrorX; renderBrush(); render(); } else if (k === 'f') toggleFoco(); else if (k === 'c' && document.body.classList.contains('foco')) $('#faixaBtn').click();
   else if (k === '0') fit(); else if (k === '+' || k === '=') $('#zoomIn').click(); else if (k === '-') $('#zoomOut').click();
   else if (k === '[' || k === ']') { const i = BRUSHES.indexOf(st.brush), j = i < 0 ? BRUSHES.findIndex(n => n > st.brush) - (k === '[' ? 1 : 0) : i + (k === '[' ? -1 : 1); setBrush(BRUSHES[clamp(j, 0, BRUSHES.length - 1)]); }
@@ -237,4 +245,4 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keyup', (e) => { if (e.key === ' ') panMode = false; });
 function showHelp() { modal('Ajuda e atalhos', `<div class="note"><strong>Apple Pencil:</strong> quando a caneta encosta pela primeira vez, liga "Só Pencil": a caneta desenha, e o dedo e a palma só movem e dão zoom.</div>
   <div class="note"><strong>Gestos (como no Procreate):</strong> pinça dá zoom e move · tocar com dois dedos desfaz e com três refaz · segurar dois ou três dedos desfaz ou refaz em sequência · segurar um dedo parado abre o conta-gotas com lupa.</div>
-  <div class="note"><strong>Teclado:</strong> B lápis · E borracha · G balde · I conta-gotas · L linha · U retângulo · O elipse · S seleção · M mover · H mão · X simetria · [ ] tamanho · F tela cheia · C faixa de cores · 0 ajustar · setas movem (⇧ = 8 px) · , . quadros · ⌘Z/⇧⌘Z · ⌘C ⌘X ⌘V · ⌘D duplica camada · ⌘A tudo · Delete limpa · espaço + arrastar move a vista · Alt + clique pega cor.</div>`, [['Fechar', null, 'primary']]); }
+  <div class="note"><strong>Teclado:</strong> B lápis · E borracha · G balde · I conta-gotas · W troca cor principal/secundária · L linha · U retângulo · O elipse · S seleção · M mover · H mão · X simetria · [ ] tamanho · F tela cheia · C faixa de cores · 0 ajustar · setas movem (⇧ = 8 px) · , . quadros · ⌘Z/⇧⌘Z · ⌘C ⌘X ⌘V · ⌘D duplica camada · ⌘A tudo · Delete limpa · espaço + arrastar move a vista · Alt + clique pega cor.</div>`, [['Fechar', null, 'primary']]); }

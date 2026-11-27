@@ -202,6 +202,10 @@ body.boot .foot{animation:lcdOn .7s steps(5,end) both}body.boot .foot>*{animatio
 .prow::-webkit-scrollbar{display:none}
 .prow .cur{width:38px;height:36px;border-radius:9px;flex:none;position:relative;overflow:hidden;box-shadow:inset 0 0 0 1px rgb(0 0 0/.25)}
 .prow .cur i{position:absolute;inset:0}
+.duo{display:flex;align-items:flex-end;gap:4px;flex:none}
+.cur2{width:30px;height:30px;border-radius:8px;position:relative;overflow:hidden;flex:none;box-shadow:inset 0 0 0 1px rgb(0 0 0/.25),0 1px 2px rgb(var(--shadow)/.2)}
+.cur2 i{position:absolute;inset:0}
+.cur2:hover{box-shadow:inset 0 0 0 1px rgb(0 0 0/.25),0 0 0 2px rgb(var(--plum))}
 .prow .gap{width:1px;height:26px;background:rgb(var(--edge));flex:none;margin:0 3px}
 .prow button.c{width:34px;height:34px;flex:none;border-radius:8px;box-shadow:inset 0 0 0 1px rgb(0 0 0/.22),0 1px 1px rgb(var(--shadow)/.2);transition:transform .12s var(--ease),box-shadow .12s}
 .prow button.c:hover{transform:translateY(-2px)}
@@ -1013,7 +1017,7 @@ pre.prompt{white-space:pre-wrap;font:12px/1.55 var(--mono);background:rgb(var(--
 </script>
 <script>
 'use strict';
-const VERSION = '1.11.0';
+const VERSION = '1.12.0';
 /* ---- 00_base.js ---- */
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1335,7 +1339,7 @@ function adoptPalette(name, colors) {
    ====================================================================== */
 let doc, cur = { frame: 0, layer: 0 };
 const BRUSHES = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16]; // tamanhos de pincel em px (botões e teclas [ ])
-const st = { tool: 'pencil', shape: 'rect', color: [26, 28, 44, 255], brush: clamp(LS.get('brush', 1) | 0, 1, 16), brushShape: LS.get('brushShape', 'round') === 'square' ? 'square' : 'round', pixelPerfect: true, fillShape: false, contiguous: true,
+const st = { tool: 'pencil', shape: 'rect', color: [26, 28, 44, 255], color2: [255, 255, 255, 255], alt: false, brush: clamp(LS.get('brush', 1) | 0, 1, 16), brushShape: LS.get('brushShape', 'round') === 'square' ? 'square' : 'round', pixelPerfect: true, fillShape: false, contiguous: true,
   mirrorX: false, mirrorY: false, grid: true, majorGrid: 0, onion: false, zoom: 8, ox: 0, oy: 0, swatch: -1,
   penOnly: LS.get('penOnly', false), penSeen: LS.get('penSeen', false), faixa: LS.get('faixa', true) };
 const newLayerData = () => new Uint8ClampedArray(doc.w * doc.h * 4);
@@ -1426,7 +1430,8 @@ function floodFill(x, y, c) {
   while (stack.length) { const yy = stack.pop(), xx = stack.pop(); if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue; const i = yy * w + xx; if (seen[i] || !eq(i * 4)) continue; seen[i] = 1; plotRaw(a, xx, yy, c); stack.push(xx + 1, yy, xx - 1, yy, xx, yy + 1, xx, yy - 1); }
   return true;
 }
-const drawColor = () => st.tool === 'eraser' ? [0, 0, 0, 0] : st.color;
+// botão direito do mouse pinta com a cor secundária (st.alt é marcado no pointerdown)
+const drawColor = () => st.tool === 'eraser' ? [0, 0, 0, 0] : st.alt ? st.color2 : st.color;
 const layerBlocked = () => { const L = doc.layers[cur.layer]; if (L.locked) { toast('A camada está travada'); return true; } if (!L.visible) { toast('A camada está oculta'); return true; } return false; };
 
 let stroke = null; const strokeActive = () => !!(stroke && !stroke.noop && !stroke.pan);
@@ -1498,12 +1503,12 @@ function lupaEm(clientX, clientY) {
   g.drawImage(cv, (clientX - r.left) * dpr - src / 2, (clientY - r.top) * dpr - src / 2, src, src, 0, 0, S, S);
   const cel = S * st.zoom * dpr / src, ox = R0 - ((clientX - r.left) * dpr - (st.ox + x * st.zoom) * dpr) * S / src, oy = R0 - ((clientY - r.top) * dpr - (st.oy + y * st.zoom) * dpr) * S / src;
   g.strokeStyle = '#fff'; g.lineWidth = 3; g.strokeRect(ox, oy, cel, cel); g.restore();
-  const nova = CG.cand && CG.cand[3] ? rgb2hex(...CG.cand) : '#00000000', velha = rgb2hex(...st.color);
+  const nova = CG.cand && CG.cand[3] ? rgb2hex(...CG.cand) : '#00000000', velha = rgb2hex(...(CG.alt ? st.color2 : st.color));
   g.lineWidth = 20; g.strokeStyle = CG.cand && CG.cand[3] ? nova : 'rgba(128,128,128,.4)'; g.beginPath(); g.arc(R0, R0, R0 - 12, Math.PI, 0); g.stroke(); g.strokeStyle = velha; g.beginPath(); g.arc(R0, R0, R0 - 12, 0, Math.PI); g.stroke();
   g.lineWidth = 2; g.strokeStyle = 'rgba(0,0,0,.5)'; g.beginPath(); g.arc(R0, R0, R0 - 2, 0, 7); g.stroke(); g.beginPath(); g.arc(R0, R0, R0 - 22, 0, 7); g.stroke();
 }
-function startPick(id, x, y) { CG = { id }; lupaEm(x, y); }
-function endPick(commit) { if (!CG) return; const c = CG.cand; CG = null; $('#lupa').style.display = 'none'; if (commit && c && c[3] > 0) { setColor(c); if (st.tool === 'eraser' || st.tool === 'pick') setTool('pencil'); } }
+function startPick(id, x, y, alt) { CG = { id, alt: !!alt }; lupaEm(x, y); }
+function endPick(commit) { if (!CG) return; const c = CG.cand, alt = CG.alt; CG = null; $('#lupa').style.display = 'none'; if (commit && c && c[3] > 0 && alt) { st.color2 = c.slice(); renderColor(); renderFaixa(); return; } if (commit && c && c[3] > 0) { setColor(c); if (st.tool === 'eraser' || st.tool === 'pick') setTool('pencil'); } }
 function setPenOnly(on, auto) { st.penOnly = on; st.penSeen = true; LS.set('penOnly', on); LS.set('penSeen', true); updateBar(); renderBrush(); if (auto) toast('Apple Pencil detectada: agora só a caneta pinta; o dedo move e dá zoom', 3600); }
 const ehDedo = (e) => e.pointerType === 'touch' && st.penOnly;
 const meio = () => { const p = [...TOUCHES.values()]; return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2, d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) || 1 }; };
@@ -1525,10 +1530,11 @@ cv.addEventListener('pointerdown', (e) => {
     if (TOUCHES.size > 2) return;
   }
   if (pinch || PEN_DOWN && e.pointerType === 'touch') return;
-  if (e.pointerType === 'mouse' && e.altKey) { startPick(e.pointerId, e.clientX, e.clientY); return; }
-  if (st.tool === 'hand' || e.button === 1 || e.button === 2 || panMode || ehDedo(e)) { stroke = { pan: true, id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: st.ox, oy: st.oy }; return; }
+  st.alt = e.pointerType === 'mouse' && e.button === 2;
+  if (e.pointerType === 'mouse' && e.altKey) { startPick(e.pointerId, e.clientX, e.clientY, st.alt); return; }
+  if (st.tool === 'hand' || e.button === 1 || (e.button === 2 && ['hand', 'select', 'move'].includes(st.tool)) || panMode || ehDedo(e)) { stroke = { pan: true, id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: st.ox, oy: st.oy }; return; }
   const [x, y] = toPix(e.clientX, e.clientY);
-  if (st.tool === 'pick') { startPick(e.pointerId, e.clientX, e.clientY); return; }
+  if (st.tool === 'pick') { startPick(e.pointerId, e.clientX, e.clientY, st.alt); return; }
   if (st.tool === 'fill' && e.pointerType === 'touch') { fillPend = { id: e.pointerId, x, y }; return; }
   stroke = null; beginStroke(x, y); if (stroke) stroke.id = e.pointerId;
 });
@@ -1598,7 +1604,7 @@ function nudge(dx, dy) { if (layerBlocked()) return; pushHist(); const base = ne
 function rgbToHsv(r, g, b) { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let h = 0; if (d) { if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h *= 60; if (h < 0) h += 360; } return { h, s: mx ? d / mx : 0, v: mx }; }
 function hsvToRgb(h, s, v) { const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c; let r, g, b; if (h < 60) [r, g, b] = [c, x, 0]; else if (h < 120) [r, g, b] = [x, c, 0]; else if (h < 180) [r, g, b] = [0, c, x]; else if (h < 240) [r, g, b] = [0, x, c]; else if (h < 300) [r, g, b] = [x, 0, c]; else [r, g, b] = [c, 0, x]; return [(r + m) * 255, (g + m) * 255, (b + m) * 255]; }
 let cpEl = null;
-function closeColorPicker() { if (!cpEl) return; cpEl.remove(); cpEl = null; pushRecent(rgb2hex(...st.color.slice(0, 3))); renderColor(); }
+function closeColorPicker() { if (!cpEl) return; cpEl.remove(); cpEl = null; commitColor(); pushRecent(rgb2hex(...st.color.slice(0, 3))); renderColor(); }
 function openColorPicker(anchor) {
   if (cpEl) { closeColorPicker(); return; }
   let hsv = rgbToHsv(st.color[0], st.color[1], st.color[2]); const pal = palList(palName);
@@ -1724,7 +1730,8 @@ let palPick = null;
 function renderColor() {
   const b = $('#cb-cor'); if (!b) return; const c = st.color, hex = rgb2hex(c[0], c[1], c[2]), pal = palList(palName);
   st.swatch = pal.indexOf(hex);
-  b.innerHTML = `<div class="colors"><button class="cur checker" id="curColor" title="Abrir seletor de cor"><i style="background:rgba(${c[0]},${c[1]},${c[2]},${c[3] / 255})"></i></button>
+  const c2 = st.color2;
+  b.innerHTML = `<div class="colors"><div class="duo"><button class="cur checker" id="curColor" title="Cor principal (botão esquerdo) — abrir seletor de cor"><i style="background:rgba(${c[0]},${c[1]},${c[2]},${c[3] / 255})"></i></button><button class="cur2 checker" id="cur2Color" title="Cor secundária (botão direito) — toque para trocar (W)" aria-label="Cor secundária ${rgb2hex(c2[0], c2[1], c2[2])}, trocar"><i style="background:rgba(${c2[0]},${c2[1]},${c2[2]},${c2[3] / 255})"></i></button></div>
       <div class="stack" style="gap:4px;flex:1"><input class="input-field mono" id="hexIn" maxlength="7" value="${hex}" aria-label="Cor em hex"><div class="row"><span class="small muted" style="width:44px">Opac.</span><input type="range" id="alphaIn" min="0" max="255" value="${c[3]}"></div></div></div>
     <div class="row"><div id="palPickHost" style="flex:1;min-width:0"></div>${tbx2('palAdd', 'plus', 'Adicionar a cor atual à paleta')}${tbx2('palDel', 'trash', 'Remover a cor selecionada da paleta', 'danger')}</div>
     <div class="swatches">${pal.map((h, i) => `<button class="sw${i === st.swatch ? ' on' : ''}" style="background:${h}" data-sw="${i}" title="${h}"></button>`).join('')}</div>
@@ -1732,12 +1739,18 @@ function renderColor() {
     <div class="row wrap"><button class="btn sm" data-pc="palFromImg">Extrair do desenho</button><button class="btn sm" data-pc="palHex">Colar hex</button><button class="btn sm" data-pc="palLospec" title="Importar uma paleta do Lospec pelo link ou pelo nome (precisa de internet)">${ico('import')}Do Lospec</button><button class="btn sm" data-pc="palFile" title="Abrir arquivo de paleta .hex, .gpl ou .pal (funciona sem internet)">${ico('folder')}Arquivo</button></div>`;
   palPick = palettePicker($('#palPickHost'), { value: palName, onChange: (v) => { palName = v; LS.set('palName', palName); st.swatch = -1; renderColor(); renderFaixa(); } });
   $('#hexIn').addEventListener('input', (e) => { let v = e.target.value.trim(); if (v[0] !== '#') v = '#' + v; if (/^#[0-9a-f]{6}$/i.test(v)) setColor([...hex2rgb(v), st.color[3]], true); });
-  $('#hexIn').addEventListener('change', () => { pushRecent(rgb2hex(...st.color.slice(0, 3))); renderColor(); });
+  $('#hexIn').addEventListener('change', () => { commitColor(); pushRecent(rgb2hex(...st.color.slice(0, 3))); renderColor(); });
   $('#alphaIn').addEventListener('input', (e) => setColor([st.color[0], st.color[1], st.color[2], +e.target.value], true));
-  $('#curColor').onclick = () => openColorPicker($('#curColor'));
+  $('#curColor').onclick = () => openColorPicker($('#curColor')); $('#cur2Color').onclick = swapColors;
 }
+/* Cor principal e secundária: trocar a principal manda a anterior para a secundária (botão direito do mouse).
+   Mudanças "ao vivo" (seletor, hex, opacidade) contam como uma troca só: a anterior é guardada na primeira e entregue em commitColor(). */
+let colorPrev = null;
+function commitColor() { const p = colorPrev; colorPrev = null; if (p && p.some((v, i) => v !== st.color[i])) st.color2 = p; }
+function swapColors() { colorPrev = null; [st.color, st.color2] = [st.color2, st.color]; if (st.tool === 'eraser') setTool('pencil'); renderColor(); renderFaixa(); }
 function setColor(c, live) {
-  st.color = c.slice(); if (st.tool === 'eraser' && !live) setTool('pencil');
+  if (!colorPrev) colorPrev = st.color.slice();
+  st.color = c.slice(); if (!live) commitColor(); if (st.tool === 'eraser' && !live) setTool('pencil');
   if (live) { const i = $('#curColor i'); if (i) i.style.background = `rgba(${c[0]},${c[1]},${c[2]},${c[3] / 255})`; const h = $('#hexIn'); if (h && document.activeElement !== h) h.value = rgb2hex(c[0], c[1], c[2]); const sw = palList(palName).indexOf(rgb2hex(c[0], c[1], c[2])); $$('#cb-cor .sw').forEach((s, i) => s.classList.toggle('on', i === sw)); }
   else { pushRecent(rgb2hex(c[0], c[1], c[2])); renderColor(); }
   renderFaixa();
@@ -1893,6 +1906,7 @@ document.addEventListener('keydown', (e) => {
     else if (k === 'd') { e.preventDefault(); dupLayer(); } else if (k === 'a') { e.preventDefault(); selRect = { x: 0, y: 0, w: doc.w, h: doc.h }; setTool('select'); } return; }
   if (k === ' ') { panMode = true; e.preventDefault(); return; }
   if (KEYMAP[k]) { setTool(KEYMAP[k]); return; }
+  if (k === 'w') { swapColors(); return; }
   if (k === 'x') { st.mirrorX = !st.mirrorX; renderBrush(); render(); } else if (k === 'f') toggleFoco(); else if (k === 'c' && document.body.classList.contains('foco')) $('#faixaBtn').click();
   else if (k === '0') fit(); else if (k === '+' || k === '=') $('#zoomIn').click(); else if (k === '-') $('#zoomOut').click();
   else if (k === '[' || k === ']') { const i = BRUSHES.indexOf(st.brush), j = i < 0 ? BRUSHES.findIndex(n => n > st.brush) - (k === '[' ? 1 : 0) : i + (k === '[' ? -1 : 1); setBrush(BRUSHES[clamp(j, 0, BRUSHES.length - 1)]); }
@@ -1904,7 +1918,7 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keyup', (e) => { if (e.key === ' ') panMode = false; });
 function showHelp() { modal('Ajuda e atalhos', `<div class="note"><strong>Apple Pencil:</strong> quando a caneta encosta pela primeira vez, liga "Só Pencil": a caneta desenha, e o dedo e a palma só movem e dão zoom.</div>
   <div class="note"><strong>Gestos (como no Procreate):</strong> pinça dá zoom e move · tocar com dois dedos desfaz e com três refaz · segurar dois ou três dedos desfaz ou refaz em sequência · segurar um dedo parado abre o conta-gotas com lupa.</div>
-  <div class="note"><strong>Teclado:</strong> B lápis · E borracha · G balde · I conta-gotas · L linha · U retângulo · O elipse · S seleção · M mover · H mão · X simetria · [ ] tamanho · F tela cheia · C faixa de cores · 0 ajustar · setas movem (⇧ = 8 px) · , . quadros · ⌘Z/⇧⌘Z · ⌘C ⌘X ⌘V · ⌘D duplica camada · ⌘A tudo · Delete limpa · espaço + arrastar move a vista · Alt + clique pega cor.</div>`, [['Fechar', null, 'primary']]); }
+  <div class="note"><strong>Teclado:</strong> B lápis · E borracha · G balde · I conta-gotas · W troca cor principal/secundária · L linha · U retângulo · O elipse · S seleção · M mover · H mão · X simetria · [ ] tamanho · F tela cheia · C faixa de cores · 0 ajustar · setas movem (⇧ = 8 px) · , . quadros · ⌘Z/⇧⌘Z · ⌘C ⌘X ⌘V · ⌘D duplica camada · ⌘A tudo · Delete limpa · espaço + arrastar move a vista · Alt + clique pega cor.</div>`, [['Fechar', null, 'primary']]); }
 
 /* ---- 07e_prow.js ---- */
 /* ======================= fileira de paleta e LCD ======================= */
@@ -1913,7 +1927,8 @@ function showHelp() { modal('Ajuda e atalhos', `<div class="note"><strong>Apple 
 function renderPRow() {
   const r = $('#pRow'); if (!r || !doc) return;
   const pal = palList(palName), c = st.color, h = rgb2hex(c[0], c[1], c[2]), er = st.tool === 'eraser';
-  r.innerHTML = `<button class="cur checker" data-pr="pick" title="Abrir seletor de cor" aria-label="Cor atual ${h}"><i style="background:rgba(${c[0]},${c[1]},${c[2]},${c[3] / 255})"></i></button>`
+  const c2 = st.color2, h2 = rgb2hex(c2[0], c2[1], c2[2]);
+  r.innerHTML = `<span class="duo"><button class="cur checker" data-pr="pick" title="Cor principal (botão esquerdo) — abrir seletor de cor" aria-label="Cor principal ${h}"><i style="background:rgba(${c[0]},${c[1]},${c[2]},${c[3] / 255})"></i></button><button class="cur2 checker" data-pr="swap" title="Cor secundária (botão direito) — toque para trocar (W)" aria-label="Cor secundária ${h2}, trocar"><i style="background:rgba(${c2[0]},${c2[1]},${c2[2]},${c2[3] / 255})"></i></button></span>`
     + `<button class="er${er ? ' on' : ''}" data-pr="er" title="Borracha (E)" aria-label="Borracha">${ico('eraser')}</button><span class="gap"></span>`
     + pal.map(p => `<button class="c${!er && p === h ? ' on' : ''}" style="background:${p}" data-pc2="${p}" title="${p}" aria-label="Cor ${p}"></button>`).join('');
   const l = $('#lcdCol'); if (l) l.innerHTML = `<i class="lcd-sw" style="background:${h}"></i>${h.toUpperCase()}`;
@@ -1922,9 +1937,13 @@ function renderPRow() {
 $('#pRow').addEventListener('click', (e) => {
   const b = e.target.closest('[data-pc2],[data-pr]'); if (!b) return;
   if (b.dataset.pc2) { setColor([...hex2rgb(b.dataset.pc2), 255]); if (!['pencil', 'fill', 'line', 'rect', 'ellipse'].includes(st.tool)) setTool('pencil'); return; }
-  if (b.dataset.pr === 'er') setTool('eraser');
+  if (b.dataset.pr === 'swap') swapColors();
+  else if (b.dataset.pr === 'er') setTool('eraser');
   else if (b.dataset.pr === 'pick') openColorPicker(b);
 });
+// botão direito numa cor da paleta (fileira ou módulo Cor) = escolher a secundária, sem mexer na principal
+function pickSecondary(e) { const b = e.target.closest('[data-pc2],[data-sw],[data-fx]'); if (!b || b.dataset.fx === 'er') return; e.preventDefault(); const h = b.dataset.pc2 || b.dataset.fx || palList(palName)[+b.dataset.sw]; if (!h) return; st.color2 = [...hex2rgb(h), 255]; renderColor(); renderFaixa(); }
+['#pRow', '#side', '#faixa'].forEach(s => $(s).addEventListener('contextmenu', pickSecondary));
 
 /* ---- 08_snapper.js ---- */
 /* ======================================================================
@@ -3059,7 +3078,7 @@ window.addEventListener('pagehide', flushSaves); window.addEventListener('before
 (function init() {
   $('#ver').textContent = 'v' + VERSION; paintIcons(); setTheme(LS.get('dark', true));
   try { const saved = LS.get('doc', null); if (saved) deserialize(saved); else newDoc(32, 32); } catch { newDoc(32, 32); }
-  const p0 = palList(palName)[0]; st.color = p0 ? [...hex2rgb(p0), 255] : [0, 0, 0, 255];
+  const p0 = palList(palName)[0]; st.color = p0 ? [...hex2rgb(p0), 255] : [0, 0, 0, 255]; const p1 = palList(palName).at(-1); st.color2 = p1 ? [...hex2rgb(p1), 255] : [255, 255, 255, 255];
   buildRail(); buildSide(); setTool('pencil'); renderSubtitle(); updateBar(); setStatus('saved');
   initTilemap();
   let lastW = 0; new ResizeObserver(() => { if (!viewOn('editor')) return; const w = area.clientWidth; resizeCanvas(); if (lastW && Math.abs(w - lastW) > 60) fit(); lastW = w; }).observe(area);
