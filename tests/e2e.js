@@ -399,6 +399,23 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   await p.keyboard.down('Alt'); await p.mouse.move(...at(8, 8)); await p.mouse.down({ button: 'right' }); await p.mouse.up({ button: 'right' }); await p.keyboard.up('Alt'); await sleep(80);
   ok(await p.evaluate(() => st.color2.slice(0, 3).join() === '1,2,3' && st.color[0] === 70), 'Alt + botão direito pega a cor para a secundária');
   ok(await p.evaluate(() => $$('.duo .cur2').length >= 2), 'secundária aparece no módulo Cor e na fileira de paleta');
+  // ---- 1.13.0: modo tile (desenho repetido em volta, traço dá a volta nas bordas)
+  await p.evaluate(() => { newDoc(16, 16, 'Tile'); setTool('pencil'); st.color = [200, 10, 10, 255]; fullRefresh(); }); await p.keyboard.press('t'); await sleep(200); at = await geo();
+  ok(await p.evaluate(() => st.tileMode && st.zoom * 48 <= area.clientWidth && st.zoom * 48 <= area.clientHeight), 'T liga o modo tile e a vista cabe os 3×3');
+  await p.mouse.move(...at(13, 4)); await p.mouse.down(); await p.mouse.move(...at(18, 4), { steps: 8 }); await p.mouse.up(); await sleep(80);
+  ok(await p.evaluate(() => { const a = doc.frames[cur.frame][cur.layer], on = (x, y) => a[(y * 16 + x) * 4 + 3] > 0; return on(13, 4) && on(15, 4) && on(0, 4) && on(2, 4) && !on(3, 4); }), 'traço que passa da borda direita continua na esquerda');
+  await p.mouse.move(...at(-4, 10)); await p.mouse.down(); await p.mouse.up(); await sleep(80);
+  ok(await p.evaluate(() => doc.frames[cur.frame][cur.layer][(10 * 16 + 12) * 4 + 3] > 0), 'pintar na casa repetida da esquerda pinta no tile');
+  await p.click('[data-tool="fill"]'); await p.mouse.click(...at(24, 24)); await sleep(80);
+  ok(await p.evaluate(() => { const a = doc.frames[cur.frame][cur.layer]; let n = 0; for (let i = 3; i < a.length; i += 4) if (a[i]) n++; return n === 256; }), 'balde numa casa repetida preenche o tile (dando a volta)');
+  await p.evaluate(() => { const a = doc.frames[cur.frame][cur.layer]; a.fill(0); a.set([9, 9, 9, 255], 0); refreshAfterEdit(); });
+  await p.click('[data-ra2="half"]'); await sleep(80);
+  ok(await p.evaluate(() => { const a = doc.frames[cur.frame][cur.layer]; return a[(8 * 16 + 8) * 4 + 3] === 255 && a[3] === 0; }), 'Deslocar ½ leva o canto para o meio');
+  await p.keyboard.press('Control+z'); await sleep(80); ok(await p.evaluate(() => doc.frames[cur.frame][cur.layer][3] === 255), 'deslocar entra no desfazer');
+  await p.click('[data-tool="move"]'); await p.mouse.move(...at(1, 1)); await p.mouse.down(); await p.mouse.move(...at(-1, -1), { steps: 4 }); await p.mouse.up(); await sleep(80);
+  ok(await p.evaluate(() => { const a = doc.frames[cur.frame][cur.layer]; return a[(14 * 16 + 14) * 4 + 3] === 255 && a[3] === 0; }), 'mover sem seleção dá a volta nas bordas');
+  await p.keyboard.press('t'); await sleep(150); ok(await p.evaluate(() => !st.tileMode && !$('[data-ck="tileMode"]').checked), 'T desliga o modo tile');
+  await p.click('[data-tool="pencil"]');
   // ---- 1.11.0: aba VFX (efeitos animados em pixel art)
   await p.click('.tab[data-v=vfx]'); await sleep(300);
   ok(await p.evaluate(() => vRes && vRes.frames.length === vDef().frames && $$('#xStrip canvas').length === vRes.frames.length), 'VFX abre com o efeito renderizado e a tira de quadros');

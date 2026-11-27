@@ -4,7 +4,7 @@
 let doc, cur = { frame: 0, layer: 0 };
 const BRUSHES = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16]; // tamanhos de pincel em px (botões e teclas [ ])
 const st = { tool: 'pencil', shape: 'rect', color: [26, 28, 44, 255], color2: [255, 255, 255, 255], alt: false, brush: clamp(LS.get('brush', 1) | 0, 1, 16), brushShape: LS.get('brushShape', 'round') === 'square' ? 'square' : 'round', pixelPerfect: true, fillShape: false, contiguous: true,
-  mirrorX: false, mirrorY: false, grid: true, majorGrid: 0, onion: false, zoom: 8, ox: 0, oy: 0, swatch: -1,
+  mirrorX: false, mirrorY: false, tileMode: !!LS.get('tileMode', false), grid: true, majorGrid: 0, onion: false, zoom: 8, ox: 0, oy: 0, swatch: -1,
   penOnly: LS.get('penOnly', false), penSeen: LS.get('penSeen', false), faixa: LS.get('faixa', true) };
 const newLayerData = () => new Uint8ClampedArray(doc.w * doc.h * 4);
 function newDoc(w, h, name) { doc = { name: name || 'Sem título', w, h, fps: 8, layers: [{ name: 'Camada 1', visible: true, opacity: 1, locked: false }], frames: [[null]] }; doc.frames[0][0] = newLayerData(); cur = { frame: 0, layer: 0 }; hist.length = 0; future.length = 0; selRect = null; }

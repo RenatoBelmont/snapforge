@@ -3,22 +3,26 @@ const cv = $('#cv'), cx = cv.getContext('2d'), area = $('#area');
 const off = document.createElement('canvas'), offx = off.getContext('2d'), onionC = document.createElement('canvas');
 let overlay = null, selRect = null, hover = null, raf = 0;
 function resizeCanvas() { const r = area.getBoundingClientRect(), d = devicePixelRatio || 1; cv.width = Math.max(1, Math.round(r.width * d)); cv.height = Math.max(1, Math.round(r.height * d)); render(); }
-function fit() { const r = area.getBoundingClientRect(); if (!r.width) return; st.zoom = Math.max(1, Math.floor(Math.min((r.width - 32) / doc.w, (r.height - 32) / doc.h))); st.ox = Math.round((r.width - doc.w * st.zoom) / 2); st.oy = Math.round((r.height - doc.h * st.zoom) / 2); render(); }
+function fit() { const r = area.getBoundingClientRect(); if (!r.width) return; const k = st.tileMode ? 3 : 1; st.zoom = Math.max(1, Math.floor(Math.min((r.width - 32) / (doc.w * k), (r.height - 32) / (doc.h * k)))); st.ox = Math.round((r.width - doc.w * st.zoom) / 2); st.oy = Math.round((r.height - doc.h * st.zoom) / 2); render(); }
 function zoomAt(nz, sx, sy) { nz = clamp(Math.round(nz), 1, 96); const k = nz / st.zoom; st.ox = sx - (sx - st.ox) * k; st.oy = sy - (sy - st.oy) * k; st.zoom = nz; render(); }
 const render = () => { if (!raf) raf = requestAnimationFrame(draw); };
 function draw() {
   raf = 0; const d = devicePixelRatio || 1, z = st.zoom, W = doc.w * z, H = doc.h * z;
   cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(0, 0, cv.width, cv.height); cx.setTransform(d, 0, 0, d, 0, 0);
   const cs = getComputedStyle(document.documentElement), ca = `rgb(${cs.getPropertyValue('--check-a').trim().replace(/ /g, ',')})`, cb = `rgb(${cs.getPropertyValue('--check-b').trim().replace(/ /g, ',')})`;
-  cx.fillStyle = cb; cx.fillRect(st.ox, st.oy, W, H); cx.fillStyle = ca;
+  // modo tile: o desenho se repete nas 8 casas em volta (para ver se as bordas encaixam)
+  const T = st.tileMode ? [[0, 0], [-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]] : [[0, 0]];
   const cell = Math.max(z, 8 * Math.max(1, Math.round(z / 8)));
-  cx.save(); cx.beginPath(); cx.rect(st.ox, st.oy, W, H); cx.clip();
-  for (let y = 0; y * cell < H; y++) for (let x = y % 2; x * cell < W; x += 2) cx.fillRect(st.ox + x * cell, st.oy + y * cell, cell, cell);
-  cx.restore(); cx.imageSmoothingEnabled = false;
+  for (const [tx, ty] of T) { const X0 = st.ox + tx * W, Y0 = st.oy + ty * H; cx.fillStyle = cb; cx.fillRect(X0, Y0, W, H); cx.fillStyle = ca;
+    cx.save(); cx.beginPath(); cx.rect(X0, Y0, W, H); cx.clip();
+    for (let y = 0; y * cell < H; y++) for (let x = y % 2; x * cell < W; x += 2) cx.fillRect(X0 + x * cell, Y0 + y * cell, cell, cell);
+    cx.restore(); }
+  cx.imageSmoothingEnabled = false;
   if (st.onion && cur.frame > 0) { const o = composite(cur.frame - 1); onionC.width = doc.w; onionC.height = doc.h; onionC.getContext('2d').putImageData(new ImageData(o.data, doc.w, doc.h), 0, 0); cx.globalAlpha = .28; cx.drawImage(onionC, st.ox, st.oy, W, H); cx.globalAlpha = 1; }
   const comp = composite(cur.frame);
   if (overlay) for (const [i, c] of overlay) { const o = i * 4; if (c[3] === 0) comp.data[o + 3] = 0; else { comp.data[o] = c[0]; comp.data[o + 1] = c[1]; comp.data[o + 2] = c[2]; comp.data[o + 3] = Math.max(comp.data[o + 3], c[3]); } }
-  off.width = doc.w; off.height = doc.h; offx.putImageData(new ImageData(comp.data, doc.w, doc.h), 0, 0); cx.drawImage(off, st.ox, st.oy, W, H);
+  off.width = doc.w; off.height = doc.h; offx.putImageData(new ImageData(comp.data, doc.w, doc.h), 0, 0); for (const [tx, ty] of T) cx.drawImage(off, st.ox + tx * W, st.oy + ty * H, W, H);
+  if (T.length > 1) { cx.fillStyle = dark0() ? 'rgba(0,0,0,.22)' : 'rgba(255,255,255,.22)'; for (const [tx, ty] of T.slice(1)) cx.fillRect(st.ox + tx * W, st.oy + ty * H, W, H); }
   const dark = document.documentElement.classList.contains('dark');
   if (st.grid && z >= 6) { cx.strokeStyle = dark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.08)'; cx.lineWidth = 1; cx.beginPath();
     for (let x = 0; x <= doc.w; x++) { const X = Math.round(st.ox + x * z) + .5; cx.moveTo(X, st.oy); cx.lineTo(X, st.oy + H); }
@@ -39,12 +43,16 @@ function draw() {
 
 /* ======================= desenho ======================= */
 const inside = (x, y) => x >= 0 && y >= 0 && x < doc.w && y < doc.h;
+// modo tile: o que passa de uma borda continua do outro lado
+const wrapPt = (x, y) => st.tileMode ? [((x % doc.w) + doc.w) % doc.w, ((y % doc.h) + doc.h) % doc.h] : [x, y];
+const inTiles = (x, y) => st.tileMode ? x >= -doc.w && y >= -doc.h && x < 2 * doc.w && y < 2 * doc.h : inside(x, y);
+const dark0 = () => document.documentElement.classList.contains('dark');
 function plotRaw(arr, x, y, c) { if (!inside(x, y)) return; const o = (y * doc.w + x) * 4; arr[o] = c[0]; arr[o + 1] = c[1]; arr[o + 2] = c[2]; arr[o + 3] = c[3]; }
 function stampPoints(x, y) {
   const pts = [], b = st.brush, r0 = -Math.floor((b - 1) / 2);
   for (let dy = 0; dy < b; dy++) for (let dx = 0; dx < b; dx++) { if (b >= 3 && st.brushShape !== 'square' && (dx - (b - 1) / 2) ** 2 + (dy - (b - 1) / 2) ** 2 > (b / 2) ** 2) continue; pts.push([x + r0 + dx, y + r0 + dy]); }
-  const all = [...pts];
-  for (const [p, q] of pts) { if (st.mirrorX) all.push([doc.w - 1 - p, q]); if (st.mirrorY) all.push([p, doc.h - 1 - q]); if (st.mirrorX && st.mirrorY) all.push([doc.w - 1 - p, doc.h - 1 - q]); }
+  const all = [];
+  for (const [p0, q0] of pts) { const [p, q] = wrapPt(p0, q0); all.push([p, q]); if (st.mirrorX) all.push([doc.w - 1 - p, q]); if (st.mirrorY) all.push([p, doc.h - 1 - q]); if (st.mirrorX && st.mirrorY) all.push([doc.w - 1 - p, doc.h - 1 - q]); }
   return all;
 }
 function linePts(x0, y0, x1, y1) { const pts = []; let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1, dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1, e = dx + dy; for (;;) { pts.push([x0, y0]); if (x0 === x1 && y0 === y1) break; const e2 = 2 * e; if (e2 >= dy) { e += dy; x0 += sx; } if (e2 <= dx) { e += dx; y0 += sy; } } return pts; }
@@ -58,7 +66,7 @@ function floodFill(x, y, c) {
   const eq = (o) => a[o] === t[0] && a[o + 1] === t[1] && a[o + 2] === t[2] && a[o + 3] === t[3];
   if (!st.contiguous) { for (let i = 0; i < w * h; i++) if (eq(i * 4)) plotRaw(a, i % w, (i / w) | 0, c); return true; }
   const stack = [x, y], seen = new Uint8Array(w * h);
-  while (stack.length) { const yy = stack.pop(), xx = stack.pop(); if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue; const i = yy * w + xx; if (seen[i] || !eq(i * 4)) continue; seen[i] = 1; plotRaw(a, xx, yy, c); stack.push(xx + 1, yy, xx - 1, yy, xx, yy + 1, xx, yy - 1); }
+  while (stack.length) { let yy = stack.pop(), xx = stack.pop(); if (st.tileMode) [xx, yy] = wrapPt(xx, yy); if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue; const i = yy * w + xx; if (seen[i] || !eq(i * 4)) continue; seen[i] = 1; plotRaw(a, xx, yy, c); stack.push(xx + 1, yy, xx - 1, yy, xx, yy + 1, xx, yy - 1); }
   return true;
 }
 // botão direito do mouse pinta com a cor secundária (st.alt é marcado no pointerdown)
@@ -72,7 +80,7 @@ function beginStroke(x, y) {
   if (t === 'select') { stroke = { x0: x, y0: y, select: true, sel0: selRect }; selRect = null; render(); return; }
   if (layerBlocked()) { stroke = { noop: true }; return; }
   const fut = pushHist(); stroke = { x0: x, y0: y, lx: x, ly: y, base: new Uint8ClampedArray(px()), before: hist[hist.length - 1], fut, changed: false, path: [] };
-  if (t === 'fill') { stroke.changed = inside(x, y) && floodFill(x, y, drawColor()); endStroke(); stroke = null; return; }
+  if (t === 'fill') { if (inTiles(x, y)) [x, y] = wrapPt(x, y); stroke.changed = inside(x, y) && floodFill(x, y, drawColor()); endStroke(); stroke = null; return; }
   if (t === 'pencil' || t === 'eraser') { paintPoint(x, y); render(); return; }
   if (t === 'move') { stroke.sel = selRect ? { ...selRect } : null; return; }
   moveStroke(x, y);
@@ -103,7 +111,7 @@ function shiftPixels(src, sel, dx, dy) {
   if (sel) { a.set(src); for (let yy = sel.y; yy < sel.y + sel.h; yy++) for (let xx = sel.x; xx < sel.x + sel.w; xx++) { const o = (yy * w + xx) * 4; a[o] = a[o + 1] = a[o + 2] = a[o + 3] = 0; }
     for (let yy = sel.y; yy < sel.y + sel.h; yy++) for (let xx = sel.x; xx < sel.x + sel.w; xx++) { const tx = xx + dx, ty = yy + dy; if (tx < 0 || ty < 0 || tx >= w || ty >= h) continue; const so = (yy * w + xx) * 4; a.set(src.subarray(so, so + 4), (ty * w + tx) * 4); }
     selRect = { x: sel.x + dx, y: sel.y + dy, w: sel.w, h: sel.h }; }
-  else { a.fill(0); for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) { const tx = xx + dx, ty = yy + dy; if (tx < 0 || ty < 0 || tx >= w || ty >= h) continue; const so = (yy * w + xx) * 4; a.set(src.subarray(so, so + 4), (ty * w + tx) * 4); } }
+  else { a.fill(0); for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) { let tx = xx + dx, ty = yy + dy; if (st.tileMode) [tx, ty] = wrapPt(tx, ty); if (tx < 0 || ty < 0 || tx >= w || ty >= h) continue; const so = (yy * w + xx) * 4; a.set(src.subarray(so, so + 4), (ty * w + tx) * 4); } }
 }
 function endStroke() {
   if (!stroke || stroke.noop) { stroke = null; return; }
@@ -124,7 +132,7 @@ const TOUCHES = new Map(); let PEN_DOWN = false, pinch = null, LP = null, CG = n
 const gestUndo = () => { if (!hist.length) return toast('Nada para desfazer', 900); undo(); toast('Desfeito (dois dedos)', 900); };
 const gestRedo = () => { if (!future.length) return toast('Nada para refazer', 900); redo(); toast('Refeito (três dedos)', 900); };
 function toPix(cx_, cy_) { const r = cv.getBoundingClientRect(); return [Math.floor((cx_ - r.left - st.ox) / st.zoom), Math.floor((cy_ - r.top - st.oy) / st.zoom)]; }
-function compositeAt(x, y) { if (!inside(x, y)) return null; const c = composite(cur.frame), o = (y * doc.w + x) * 4; return [c.data[o], c.data[o + 1], c.data[o + 2], c.data[o + 3]]; }
+function compositeAt(x, y) { if (inTiles(x, y)) [x, y] = wrapPt(x, y); if (!inside(x, y)) return null; const c = composite(cur.frame), o = (y * doc.w + x) * 4; return [c.data[o], c.data[o + 1], c.data[o + 2], c.data[o + 3]]; }
 function lupaEm(clientX, clientY) {
   const [x, y] = toPix(clientX, clientY); CG.cand = compositeAt(x, y); CG.x = clientX; CG.y = clientY;
   const L = $('#lupa'), g = $('#lupaCv').getContext('2d'), S = 264, R0 = S / 2; L.style.display = 'block';
@@ -171,7 +179,7 @@ cv.addEventListener('pointerdown', (e) => {
 });
 cv.addEventListener('pointermove', (e) => {
   const [x, y] = toPix(e.clientX, e.clientY); $('#fPos').textContent = inside(x, y) ? `${x}, ${y}` : '—';
-  if ((e.pointerType === 'pen' || e.pointerType === 'mouse') && !e.buttons) { const h = inside(x, y) ? [x, y] : null; if (String(h) !== String(hover)) { hover = h; render(); } }
+  if ((e.pointerType === 'pen' || e.pointerType === 'mouse') && !e.buttons) { const h = inTiles(x, y) ? [x, y] : null; if (String(h) !== String(hover)) { hover = h; render(); } }
   if (CG && e.pointerId === CG.id) { lupaEm(e.clientX, e.clientY); return; }
   if (TOUCHES.has(e.pointerId)) { const t = TOUCHES.get(e.pointerId); t.x = e.clientX; t.y = e.clientY; const d = Math.hypot(t.x - t.x0, t.y - t.y0);
     if (LP && LP.id === e.pointerId && d > 9) { clearTimeout(LP.t); LP = null; } if (GEST && d > 14) GEST.moved = true; if (fillPend && fillPend.id === e.pointerId && d > 9) fillPend = null; }

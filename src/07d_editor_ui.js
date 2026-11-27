@@ -92,12 +92,19 @@ function renderBrush() {
     ${ck('fillShape', st.fillShape, 'Formas preenchidas')}
     ${ck('contiguous', st.contiguous, 'Balde só na área conectada', 'Desligado: troca a cor no desenho inteiro')}
     <div class="grid2">${ck('mirrorX', st.mirrorX, 'Espelhar ↔')}${ck('mirrorY', st.mirrorY, 'Espelhar ↕')}</div>
+    <div class="row tilerow">${ck('tileMode', st.tileMode, 'Modo tile', 'Repete o desenho em volta para ver se as bordas encaixam; o traço que passa da borda continua do outro lado (T)')}<button class="btn sm" data-ra2="half" title="Desloca o desenho meio tile, dando a volta: as emendas vão para o meio da tela">Deslocar ½</button></div>
     <div class="grid2">${ck('grid', st.grid, 'Grade')}${ck('onion', st.onion, 'Papel de seda', 'Mostra o quadro anterior por baixo')}</div>
     ${ck('penOnly', st.penOnly, 'Só a Apple Pencil pinta', 'O dedo e a palma só movem e dão zoom')}`;
 }
 $('#side').addEventListener('change', (e) => { const c = e.target.closest('[data-ck]'); if (!c) return; const k = c.dataset.ck;
-  if (k === 'penOnly') setPenOnly(c.checked); else { st[k] = c.checked; render(); } });
+  if (k === 'penOnly') setPenOnly(c.checked); else if (k === 'tileMode') setTileMode(c.checked); else { st[k] = c.checked; render(); } });
+function setTileMode(on) { st.tileMode = !!on; LS.set('tileMode', st.tileMode); renderBrush(); fit(); }
+/** desloca todas as camadas do quadro atual meio tile, dando a volta (como o "Deslocamento" do Photoshop) */
+function offsetHalf() { if (doc.layers.some(l => l.locked)) return toast('Destrave as camadas para deslocar'); pushHist(); const w = doc.w, h = doc.h, dx = w >> 1, dy = h >> 1;
+  doc.frames[cur.frame] = doc.frames[cur.frame].map(a => { const o = new Uint8ClampedArray(a.length); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const s = (y * w + x) * 4; o.set(a.subarray(s, s + 4), (((y + dy) % h) * w + (x + dx) % w) * 4); } return o; });
+  refreshAfterEdit(); toast('Deslocado meio tile (⌘Z desfaz)'); }
 $('#side').addEventListener('click', async (e) => {
+  if (e.target.closest('[data-ra2="half"]')) { offsetHalf(); return; }
   const bb = e.target.closest('[data-b]'); if (bb) { setBrush(+bb.dataset.b); return; }
   const bs = e.target.closest('[data-bs]'); if (bs) { st.brushShape = bs.dataset.bs; LS.set('brushShape', st.brushShape); renderBrush(); render(); return; }
   const rc = e.target.closest('[data-rc]'); if (rc) { setColor([...hex2rgb(rc.dataset.rc), 255]); return; }
@@ -234,6 +241,7 @@ document.addEventListener('keydown', (e) => {
   if (k === ' ') { panMode = true; e.preventDefault(); return; }
   if (KEYMAP[k]) { setTool(KEYMAP[k]); return; }
   if (k === 'w') { swapColors(); return; }
+  if (k === 't') { setTileMode(!st.tileMode); return; }
   if (k === 'x') { st.mirrorX = !st.mirrorX; renderBrush(); render(); } else if (k === 'f') toggleFoco(); else if (k === 'c' && document.body.classList.contains('foco')) $('#faixaBtn').click();
   else if (k === '0') fit(); else if (k === '+' || k === '=') $('#zoomIn').click(); else if (k === '-') $('#zoomOut').click();
   else if (k === '[' || k === ']') { const i = BRUSHES.indexOf(st.brush), j = i < 0 ? BRUSHES.findIndex(n => n > st.brush) - (k === '[' ? 1 : 0) : i + (k === '[' ? -1 : 1); setBrush(BRUSHES[clamp(j, 0, BRUSHES.length - 1)]); }
@@ -245,4 +253,4 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keyup', (e) => { if (e.key === ' ') panMode = false; });
 function showHelp() { modal('Ajuda e atalhos', `<div class="note"><strong>Apple Pencil:</strong> quando a caneta encosta pela primeira vez, liga "Só Pencil": a caneta desenha, e o dedo e a palma só movem e dão zoom.</div>
   <div class="note"><strong>Gestos (como no Procreate):</strong> pinça dá zoom e move · tocar com dois dedos desfaz e com três refaz · segurar dois ou três dedos desfaz ou refaz em sequência · segurar um dedo parado abre o conta-gotas com lupa.</div>
-  <div class="note"><strong>Teclado:</strong> B lápis · E borracha · G balde · I conta-gotas · W troca cor principal/secundária · L linha · U retângulo · O elipse · S seleção · M mover · H mão · X simetria · [ ] tamanho · F tela cheia · C faixa de cores · 0 ajustar · setas movem (⇧ = 8 px) · , . quadros · ⌘Z/⇧⌘Z · ⌘C ⌘X ⌘V · ⌘D duplica camada · ⌘A tudo · Delete limpa · espaço + arrastar move a vista · Alt + clique pega cor.</div>`, [['Fechar', null, 'primary']]); }
+  <div class="note"><strong>Teclado:</strong> B lápis · E borracha · G balde · I conta-gotas · W troca cor principal/secundária · T modo tile (repete em volta) · L linha · U retângulo · O elipse · S seleção · M mover · H mão · X simetria · [ ] tamanho · F tela cheia · C faixa de cores · 0 ajustar · setas movem (⇧ = 8 px) · , . quadros · ⌘Z/⇧⌘Z · ⌘C ⌘X ⌘V · ⌘D duplica camada · ⌘A tudo · Delete limpa · espaço + arrastar move a vista · Alt + clique pega cor.</div>`, [['Fechar', null, 'primary']]); }
