@@ -33,6 +33,7 @@ colors:
   area-tile: "#e0558a"
   area-snap: "#2f8fe0"
   area-normal: "#1ea476"
+  area-vfx: "#e8822a"
 typography:
   ui:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', system-ui, Roboto, sans-serif"
@@ -132,7 +133,7 @@ Estratégia **contida**: neutros da carcaça + um acento (ameixa) para ação e 
 - **Trilho em uma coluna** (pedido explícito): 16 teclas uma abaixo da outra; o tamanho da tecla acompanha a altura (44 px; 40 px até 860 px de altura; 38 px até 780 px) para caber sem rolar até em 1280×720.
 - Centro: barra de comandos → tela (canvas) → **fileira de paleta** (cor atual, borracha, cores da paleta) → faixa LCD.
 - Painel direito único (304 px; 268 px abaixo de 1100 px; 252/240 px em pé), dividido em módulos por filetes, cabeçalhos fixos ao rolar.
-- Snapper/Normal: ajustes à esquerda, resultado em "telas"; em pé, os módulos de ajuste ficam lado a lado em cima.
+- Snapper/Normal/VFX: ajustes à esquerda, resultado em "telas"; em pé, os módulos de ajuste ficam lado a lado em cima (no VFX limitados a 52% da altura, rolando por dentro, para a prévia não encolher).
 - Barra de comandos sempre numa linha: rótulos somem abaixo de 1000 px de largura do palco; abaixo de 660 px saem os ± de zoom e o botão Só Pencil (continua no painel Pincel); abaixo de 470 px o nome do projeto encolhe.
 - Tudo cabe numa tela, sem rolar a página (testado em 7 tamanhos).
 

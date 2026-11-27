@@ -5,6 +5,7 @@ let tileFitted = false;
 function showView(v) {
   $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.v === v)); $$('.view').forEach(x => x.classList.toggle('on', x.id === 'v-' + v)); LS.set('view', v);
   if (v === 'editor') requestAnimationFrame(resizeCanvas);
+  if (v === 'vfx') vfxShow();
   if (v === 'tile') requestAnimationFrame(() => { tResize(); if (!tileFitted) { tFit(); tileFitted = true; } renderTileset(); });
 }
 $('#tabs').addEventListener('click', (e) => { const t = e.target.closest('.tab'); if (t) showView(t.dataset.v); });
@@ -26,7 +27,7 @@ window.addEventListener('pagehide', flushSaves); window.addEventListener('before
   buildRail(); buildSide(); setTool('pencil'); renderSubtitle(); updateBar(); setStatus('saved');
   initTilemap();
   let lastW = 0; new ResizeObserver(() => { if (!viewOn('editor')) return; const w = area.clientWidth; resizeCanvas(); if (lastW && Math.abs(w - lastW) > 60) fit(); lastW = w; }).observe(area);
-  const v0 = LS.get('view', 'editor'); showView(['editor', 'tile', 'snap', 'normal'].includes(v0) ? v0 : 'editor'); // 'gerar' (aba de IA da 1.1) e lixo caem no editor
+  const v0 = LS.get('view', 'editor'); showView(['editor', 'tile', 'snap', 'normal', 'vfx'].includes(v0) ? v0 : 'editor'); // 'gerar' (aba de IA da 1.1) e lixo caem no editor
   requestAnimationFrame(() => { resizeCanvas(); fit(); });
   setTimeout(() => document.body.classList.toggle('boot', false), 900); // o LCD acende uma vez, ao abrir; trocar de aba não repete
 })();

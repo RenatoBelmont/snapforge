@@ -1,6 +1,6 @@
 # Snapforge — pixel art, sprites e tilemaps
 
-Editor de pixel art com camadas e animação, editor de tilemap com autotile (exporta para o Tiled), Pixel Snapper e normal maps. HTML, CSS e JS puro, num arquivo só, sem dependências. Funciona offline.
+Editor de pixel art com camadas e animação, editor de tilemap com autotile (exporta para o Tiled), Pixel Snapper, normal maps e gerador de efeitos animados (VFX). HTML, CSS e JS puro, num arquivo só, sem dependências. Funciona offline.
 
 ## Instalar no iPad
 

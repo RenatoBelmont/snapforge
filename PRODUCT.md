@@ -26,7 +26,7 @@ Os motores do Sprite Fusion (Pixel Snapper e Sprite Normals) portados para JS co
 
 ## Capabilities and Constraints
 
-- Quatro áreas: Editor, Tilemap, Pixel Snapper, Normal Map.
+- Cinco áreas: Editor, Tilemap, Pixel Snapper, Normal Map e VFX (efeitos animados gerados por código, que viram animação no editor).
 - HTML/CSS/JS puro, sem dependências, CDN ou fontes externas; abre offline e como arquivo único.
 - Sem IA (o "Prompt para o ChatGPT" só monta texto). Única chamada de rede: importar paleta do Lospec, só quando o usuário pede; todo o resto funciona offline.
 - Dados em localStorage (`snapforge.*`); formatos `.snapforge.json` e `.tilemap.json` não podem quebrar.

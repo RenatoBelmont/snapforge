@@ -1,6 +1,6 @@
 # Snapforge — guia do projeto (para o Claude Code)
 
-Editor de pixel art, tilemap, Pixel Snapper e normal maps, inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.10.1**.
+Editor de pixel art, tilemap, Pixel Snapper, normal maps e efeitos animados (VFX), inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.11.0**.
 
 Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad com Apple Pencil** e também no Windows (Chrome/Firefox). Interface 100% em **português do Brasil**.
 
@@ -33,7 +33,7 @@ src/
   fonts/             Silkscreen (OFL), embutida em base64 no build — sem rede
   tilesets/          Sprout Lands (Basic), de Cup Nooble: 17 PNGs embutidos no build + LICENSE-sprout-lands.txt
 tests/
-  e2e.js             152 verificações no navegador (Playwright + Chromium)
+  e2e.js             174 verificações no navegador (Playwright + Chromium)
   engines-vs-rust.js compara os motores JS com os binários Rust originais
   snapper-structure.js  idem, checando grade e cor-base célula a célula
   fixtures/          imagens de teste + make_fixtures.js que as gera
@@ -94,6 +94,8 @@ Scripts clássicos concatenados, todos no mesmo escopo global (sem `import`/`exp
 | `09_normal.js` | Tela do Normal Map + prévia de luz interativa |
 | `10_tilemap.js` | Editor de tilemap completo (tileset, pincel/carimbo, autotile, camadas, export Tiled/PNG/JSON, ZIP sem compressão) |
 | `10a_tilelib.js` | Biblioteca de tilesets prontos (`TILESET_LIB` em listas: Terreno, Terra arada, Construções, Natureza e objetos; `TILESET_FILES` é preenchido pelo build a partir de `src/tilesets/`), `openTilesetLib` (menu "Prontos"), `loadLibTileset` |
+| `10b_vfx.js` | **Motor de VFX** (código próprio): rampas `VFX_RAMPS`, primitivas em unidades de −32 a +32 (`vDisc`, `vLine`, `vRing` com arco/elipse, `vSmoke`, `vSpark`, `vBolt`, `vGlyph`, `vCoin`), partículas analíticas (`vParts`/`vDraw`, laço por idade módulo T), catálogo `VFX` (64 efeitos em `VCATS`, 10 categorias) e `vfxRender(def, opts)` → quadros RGBA |
+| `10c_vfxui.js` | Aba VFX: lista com miniaturas, ajustes (`VX`, salvo em `vfx`), rampas, player, "Abrir no editor", exportação (tira, grade, `gifEncode`/`lzwGif`, ZIP + JSON, Godot 4 `.tres`, categoria inteira) |
 | `11_init.js` | Abas, tema, bloqueio de zoom da página no iPad, gravação imediata ao sair, `init()` |
 
 ## Dados e persistência
@@ -105,6 +107,7 @@ Tudo em `localStorage` (por navegador/aparelho), chaves com prefixo `snapforge.`
 | `doc` | projeto do editor (mesmo formato do `.snapforge.json`) |
 | `tilemap` | mapa + tileset em data URL (mesmo formato do `.tilemap.json`) |
 | `palName`, `userPals`, `recentColors` | paletas e cores |
+| `vfx` | ajustes da aba VFX (efeito, tamanho, quadros, velocidade, escala, densidade, brilho, variação, alfa duro, espelhar/girar, paleta do editor, rampas por efeito) |
 | `penOnly`, `penSeen`, `faixa`, `cards`, `tcards`, `view`, `dark`, `loupe.*`, `s.fit`, `prompt`, `nOpts`, `brush` (1–16), `brushShape` (`round`/`square`), `tBrush` (1–8, pincel do mapa) | preferências de interface |
 
 - **Projeto do editor** (`app: 'snapforge'`, `schema: 2`): `{name, w, h, fps, layers:[{name, visible, opacity, locked}], frames:[[base64 RGBA por camada]], cur, palName}`. A importação aceita também `app: 'pixelaria'` (versões 1.0.x).
@@ -149,9 +152,18 @@ Para reverificar: clone os dois repositórios numa pasta `sf-repos/` ao lado do 
 - Exporta: **Tiled `.tmj`** (gid = índice + 1, 0 = vazio; vem num `.zip` com `tileset.png`, ZIP sem compressão feito à mão em `zipStore`), PNG e JSON simples. Camadas de autotile saem resolvidas.
 - Redimensionar o mapa ancora no canto superior esquerdo (corta o resto; ⌘Z desfaz).
 
+## VFX (1.11.0)
+
+Inspirado no Pixel VFX Maker (Antahonist), que o Renato mandou para análise: **só as ideias** (categorias, rampas em degraus, semente, alfa duro, formatos de exportação). O código é do Snapforge — a licença do Pixel VFX Maker não permite copiar o dele. Regras do motor:
+- Desenha no **tamanho real do pixel**, em três camadas: luz (energia somada → degraus opacos da rampa), fumaça (translúcida em 4 níveis) e sólidos (ícones, moeda, folhas, pedras), mais um brilho (desfoque da luz em degraus translúcidos). "Alfa duro" troca as transparências por pontilhado Bayer 4×4.
+- **Determinístico**: a mesma variação (semente) dá o mesmo efeito; partículas têm posição analítica, sem simulação acumulada. Em laço, as partículas nascem em [0, T) e a idade dá a volta: o último quadro emenda no primeiro, e mais quadros só amostram mais fino o mesmo movimento.
+- Quadros, tamanho (32–192), escala, densidade e brilho não mudam a duração; **Velocidade** só muda o fps.
+- "Abrir no editor" cria um projeto do tamanho do efeito, um quadro por quadro do efeito, com o fps do efeito (⌘Z volta). Exporta tira/grade PNG (ampliar 1–4×), GIF (índice 0 transparente; > 255 cores reduz bits por canal), ZIP de quadros + JSON, Godot 4 (`SpriteFrames` com `AtlasTexture` por quadro, caminho `res://<nome>.png`) e a categoria inteira.
+- Para um efeito novo: `vfxAdd(cat, id, nome, [rampas], duração, quadros, (R, o) => (c) => {...}, { loop, smoke })`; use `vN(o, n)` para quantidades (densidade) e `vUP` para "para cima". O e2e confere que todo efeito desenha algo em 32 e 64 px.
+
 ## Testes
 
-`npm test` roda o build e `tests/e2e.js` (Chromium, viewport de iPad 1180×820 com toque). Cobre: desenho com mouse, **Pencil e toque via CDP** (`Input.dispatchMouseEvent` com `pointerType: 'pen'` e `Input.dispatchTouchEvent`), gestos, lupa, camadas (travar, arrastar), seleção/copiar/colar/setas, seletor de cor, seletor de paleta, botões de tamanho, modo foco + faixa, salvar/recarregar, Snapper (card de carregamento, lupa sincronizada, tamanho final, prompt), Normal Map, Tilemap inteiro (carimbo, balde, autotile, export `.tmj` validado), ausência de chamadas de IA, e **"sem rolar a página" em 4 abas × 3 tamanhos de tela** (mais: barra do palco numa linha só) e um bloco de regressão da 1.2.1 (camada vinda do Snapper, histórico/seleção, balde do tilemap no toque, tileset só `data:image`, desfazer de tileset, modal de novo mapa). Capturas vão para `tests/screenshots/` (ignorado no git).
+`npm test` roda o build e `tests/e2e.js` (Chromium, viewport de iPad 1180×820 com toque). Cobre: desenho com mouse, **Pencil e toque via CDP** (`Input.dispatchMouseEvent` com `pointerType: 'pen'` e `Input.dispatchTouchEvent`), gestos, lupa, camadas (travar, arrastar), seleção/copiar/colar/setas, seletor de cor, seletor de paleta, botões de tamanho, modo foco + faixa, salvar/recarregar, Snapper (card de carregamento, lupa sincronizada, tamanho final, prompt), Normal Map, Tilemap inteiro (carimbo, balde, autotile, export `.tmj` validado), VFX (todos os efeitos desenham, determinismo, alfa duro, paleta do editor, espelhar, laço, lista, rampas, teclado, tira, GIF decodificado pelo navegador, Godot, categoria, abrir no editor + desfazer, ajustes salvos), ausência de chamadas de IA, e **"sem rolar a página" em 5 abas × 3 tamanhos de tela** (mais: barra do palco numa linha só) e um bloco de regressão da 1.2.1 (camada vinda do Snapper, histórico/seleção, balde do tilemap no toque, tileset só `data:image`, desfazer de tileset, modal de novo mapa). Capturas vão para `tests/screenshots/` (ignorado no git).
 
 Não coberto: **Safari/WebKit de verdade** (o comportamento do iPad foi simulado no Chromium). Se instalar o WebKit do Playwright (`npx playwright install webkit`), vale rodar o e2e nele também.
 
@@ -163,6 +175,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 
 ## Histórico
 
+- **1.11.0** — aba **VFX**: gerador de efeitos animados em pixel art (64 efeitos em 10 categorias: explosões, golpes, cortes, fogo e fumaça, magia, raios, projéteis, água e natureza, coletáveis, status), com motor próprio inspirado no Pixel VFX Maker; tamanho 32–192, quadros, velocidade, escala, densidade, brilho, variação, alfa duro, espelhar/girar, rampas de cor e "usar a paleta do editor"; **Abrir no editor** vira animação; exporta tira/grade PNG, GIF, ZIP + JSON, Godot 4 e a categoria inteira. 174 verificações.
 - **1.10.1** — Pogo City e Apartment **ordenadas por tonalidade** (faixas de matiz de 30° a partir do vermelho, cada uma do escuro ao claro; neutros no fim). Mesmas cores, só a ordem muda.
 - **1.10.0** — paletas do Renato **Pogo City** (33 cores) e **Apartment** (28) fixas no topo da lista; **Pogo City é a paleta inicial** (`DEFAULT_PAL`) para quem abre o app pela primeira vez — quem já escolheu outra continua com ela. Testes que assumiam as cores da Sweetie 16 agora leem a paleta em uso. 152 verificações.
 - **1.9.1** — ícone de **importar** (seta entrando na caixa, `ico('import')`) em "Importar PNG" do Tilemap (usava a seta de envio, para fora) e em "Do Lospec" (usava o mesmo ícone de Exportar). Regra: `import` = trazer para dentro do app; `download` = exportar/baixar.
@@ -188,7 +201,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 - Autotile no padrão de **47 peças** (blob) para tilesets prontos nesse layout.
 - Exportar direto para **cena do Godot (.tscn/TileSet)** e **Unity Tilemap** (hoje: via Tiled).
 - Tilemap: atributos/colisão por tile (o Sprite Fusion tem "Attributes"), mapa infinito, redimensionar com âncora.
-- Exportar **GIF** da animação.
+- Exportar **GIF** da animação do editor (o codificador `gifEncode` da aba VFX já existe e pode ser reaproveitado).
 - Navegar/buscar no catálogo do Lospec de dentro do app: o endpoint de listagem (`/palette-list/load?...`) não tem CORS, então só com um servidor no meio (hoje a importação é por link ou nome).
 - Pressão da Pencil (ex.: tamanho do pincel) — hoje é ignorada de propósito.
 - Projetos grandes podem estourar o `localStorage` (~5 MB): migrar para IndexedDB se acontecer.

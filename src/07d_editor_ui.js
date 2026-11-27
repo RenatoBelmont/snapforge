@@ -218,6 +218,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target.matches('input:not([type=checkbox]):not([type=range]):not([type=color]),textarea,select') || $('#modal').classList.contains('on')) return;
   if (e.target.matches('input')) e.target.blur();
   if (viewOn('tile')) { tileKey(e); return; }
+  if (viewOn('vfx')) { vfxKey(e); return; }
   if (!viewOn('editor')) return;
   const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
   if (mod) { if (k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); } else if (k === 'y') { e.preventDefault(); redo(); } else if (k === 's') { e.preventDefault(); fileAct('save'); }
