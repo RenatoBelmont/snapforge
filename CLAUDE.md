@@ -15,6 +15,7 @@ Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad c
 5. **Sem dependências no app**: nada de CDN, frameworks ou fontes externas. Precisa abrir offline e como arquivo único. (Playwright e pngjs são só para build de ícones e testes.)
 6. **iPad primeiro**: alvos de toque ≥ 30–44 px, `touch-action` correto, nada de hover obrigatório, `inputmode` em campos numéricos, safe-area. Todo recurso de desenho tem que funcionar com caneta, dedo e mouse.
 7. **Não editar `dist/` à mão.** Edite `src/` e rode o build.
+8. **Testes enxutos (pedido do Renato, gastam tokens).** **Não** rode a bateria completa (`npm test`) a menos que o Renato peça ou que seja realmente necessário (ex.: mudança que mexe em muita coisa ao mesmo tempo, como layout geral ou entrada por ponteiro). No dia a dia: `npm run build` e uma checagem **só do que foi implementado e do que afeta diretamente a novidade** (um script Playwright curto ou `node -e`), mostrando o mínimo de saída (só falhas e contagem). Continue **escrevendo** os testes novos em `tests/e2e.js`, para quando a bateria for rodada.
 
 ---
 
