@@ -415,6 +415,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   await p.click('[data-tool="move"]'); await p.mouse.move(...at(1, 1)); await p.mouse.down(); await p.mouse.move(...at(-1, -1), { steps: 4 }); await p.mouse.up(); await sleep(80);
   ok(await p.evaluate(() => { const a = doc.frames[cur.frame][cur.layer]; return a[(14 * 16 + 14) * 4 + 3] === 255 && a[3] === 0; }), 'mover sem seleção dá a volta nas bordas');
   await p.keyboard.press('t'); await sleep(150); ok(await p.evaluate(() => !st.tileMode && !$('[data-ck="tileMode"]').checked), 'T desliga o modo tile');
+  await p.click('#rail [data-ra="tile"]'); await sleep(150); ok(await p.evaluate(() => st.tileMode && $('#rail [data-ra="tile"]').classList.contains('on')), 'botão Modo tile no trilho liga (iPad, sem teclado)');
+  await p.click('#rail [data-ra="tile"]'); await sleep(150); ok(await p.evaluate(() => !st.tileMode && !$('#rail [data-ra="tile"]').classList.contains('on')), 'e desliga');
   await p.click('[data-tool="pencil"]');
   // ---- 1.11.0: aba VFX (efeitos animados em pixel art)
   await p.click('.tab[data-v=vfx]'); await sleep(300);

@@ -6,12 +6,13 @@ const TOOLS = [['pencil', 'pencil', 'Lápis', 'B'], ['eraser', 'eraser', 'Borrac
 const ACTIONS = [['flipH', 'flipH', 'Espelhar (camada ou seleção) na horizontal'], ['flipV', 'flipV', 'Espelhar na vertical'], ['rotate', 'rotate', 'Girar 90°'], ['outline', 'outline', 'Contorno automático com a cor atual'], ['clear', 'trash', 'Limpar camada ou seleção (Delete)']];
 function buildRail() {
   $('#rail').innerHTML = TOOLS.map(t => t === '|' ? '<hr>' : `<button class="tool" data-tool="${t[0]}" title="${t[2]} (${t[3]})">${ico(t[1])}<span class="k">${t[3]}</span></button>`).join('') + '<hr>' +
+    `<button class="tool${st.tileMode ? ' on' : ''}" data-ra="tile" title="Modo tile: repete o desenho em volta para encaixar as bordas (T)" aria-pressed="${st.tileMode}">${ico('tiles')}<span class="k">T</span></button>` +
     ACTIONS.map(a => `<button class="tool" data-ra="${a[0]}" title="${a[2]}">${ico(a[1])}</button>`).join('');
 }
 $('#rail').addEventListener('click', (e) => {
   const t = e.target.closest('[data-tool]'); if (t) { setTool(t.dataset.tool); return; }
   const a = e.target.closest('[data-ra]'); if (!a) return; const k = a.dataset.ra;
-  if (k === 'flipH') transformArea('fh'); else if (k === 'flipV') transformArea('fv'); else if (k === 'rotate') transformArea('rot'); else if (k === 'outline') autoOutline(); else if (k === 'clear') clearArea();
+  if (k === 'flipH') transformArea('fh'); else if (k === 'flipV') transformArea('fv'); else if (k === 'rotate') transformArea('rot'); else if (k === 'outline') autoOutline(); else if (k === 'clear') clearArea(); else if (k === 'tile') setTileMode(!st.tileMode);
 });
 function setTool(t) { if (['line', 'rect', 'ellipse'].includes(t)) st.shape = t; st.tool = t; $$('#rail [data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t)); renderBrush(); updateBar(); renderPRow(); render(); }
 function updateBar() {
@@ -98,7 +99,7 @@ function renderBrush() {
 }
 $('#side').addEventListener('change', (e) => { const c = e.target.closest('[data-ck]'); if (!c) return; const k = c.dataset.ck;
   if (k === 'penOnly') setPenOnly(c.checked); else if (k === 'tileMode') setTileMode(c.checked); else { st[k] = c.checked; render(); } });
-function setTileMode(on) { st.tileMode = !!on; LS.set('tileMode', st.tileMode); renderBrush(); fit(); }
+function setTileMode(on) { st.tileMode = !!on; LS.set('tileMode', st.tileMode); const b = $('#rail [data-ra="tile"]'); if (b) { b.classList.toggle('on', st.tileMode); b.setAttribute('aria-pressed', st.tileMode); } renderBrush(); fit(); toast(st.tileMode ? 'Modo tile: o desenho se repete em volta (toque de novo para sair)' : 'Modo tile desligado'); }
 /** desloca todas as camadas do quadro atual meio tile, dando a volta (como o "Deslocamento" do Photoshop) */
 function offsetHalf() { if (doc.layers.some(l => l.locked)) return toast('Destrave as camadas para deslocar'); pushHist(); const w = doc.w, h = doc.h, dx = w >> 1, dy = h >> 1;
   doc.frames[cur.frame] = doc.frames[cur.frame].map(a => { const o = new Uint8ClampedArray(a.length); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const s = (y * w + x) * 4; o.set(a.subarray(s, s + 4), (((y + dy) % h) * w + (x + dx) % w) * 4); } return o; });

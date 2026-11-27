@@ -1,6 +1,6 @@
 # Snapforge — guia do projeto (para o Claude Code)
 
-Editor de pixel art, tilemap, Pixel Snapper, normal maps e efeitos animados (VFX), inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.13.0**.
+Editor de pixel art, tilemap, Pixel Snapper, normal maps e efeitos animados (VFX), inspirado no Sprite Fusion. HTML/CSS/JS puro, sem dependências em tempo de execução, gerado como **um arquivo HTML único** e como **PWA instalável no iPad**. Versão atual: **1.13.1**.
 
 Dono: Renato (dev indie, estúdio Cosmic Valley). Usa principalmente no **iPad com Apple Pencil** e também no Windows (Chrome/Firefox). Interface 100% em **português do Brasil**.
 
@@ -33,7 +33,7 @@ src/
   fonts/             Silkscreen (OFL), embutida em base64 no build — sem rede
   tilesets/          Sprout Lands (Basic), de Cup Nooble: 17 PNGs embutidos no build + LICENSE-sprout-lands.txt
 tests/
-  e2e.js             191 verificações no navegador (Playwright + Chromium)
+  e2e.js             193 verificações no navegador (Playwright + Chromium)
   engines-vs-rust.js compara os motores JS com os binários Rust originais
   snapper-structure.js  idem, checando grade e cor-base célula a célula
   fixtures/          imagens de teste + make_fixtures.js que as gera
@@ -124,7 +124,7 @@ Herdado do app Ponto Cruz do Renato. Testado e fácil de quebrar; leia antes de 
 - **Pinça** com dois dedos = zoom + pan. Se o segundo dedo chega durante um traço feito com o dedo, o traço é **desfeito** (`abortStroke`/`tAbort`, que também devolvem a pilha de refazer). O gesto só é marcado como "movido" (pinça, sem desfazer) se o 1º dedo **já estava desenhando de verdade: > 250 ms ou > 14 px** — os dedos nunca chegam juntos na mão de verdade, e na 1.7.0 marcar sempre impedia o desfazer de 2 dedos com "Dedo pinta" (corrigido na 1.7.1).
 - **Toque com 2 dedos = desfazer, 3 = refazer, como no Procreate** (sem mover > 14 px, < 450 ms). **Segurar** 2/3 dedos parados 500 ms desfaz/refaz em sequência, acelerando (`gestArm`/`gestStop` em `02_utils.js`, usados pelo editor e pelo Tilemap). Se o gesto foi toque (não pinça), zoom e posição voltam exatamente ao valor de antes (`VIEW0`/`tView0`). Os testes mandam os dedos com 40 ms de intervalo, como na mão real.
 - **Cor principal e secundária** (1.12.0): `st.color` (botão esquerdo, caneta, dedo) e `st.color2` (botão direito do mouse; `st.alt` é marcado no `pointerdown` e `drawColor()` escolhe). Trocar a principal manda a anterior para a secundária (`setColor` guarda a anterior em `colorPrev`; ajustes ao vivo do seletor/hex/opacidade contam como uma troca só e são entregues em `commitColor()`). Trocar as duas: tocar no quadradinho da secundária (`.duo .cur2`, no módulo Cor e na fileira de paleta — é o caminho no iPad) ou tecla **W**. Botão direito numa cor da paleta escolhe a secundária; Alt + botão direito (ou conta-gotas com botão direito) pega para a secundária. Botão do meio continua movendo a vista; o direito só move com mão/seleção/mover. A secundária não é salva (começa com a última cor da paleta).
-- **Modo tile** (1.13.0, `st.tileMode`, salvo em `tileMode`, tecla **T** ou "Modo tile" no módulo Pincel e vista): o `draw()` repete o desenho nas 8 casas em volta (esmaecidas) e o `fit()` enquadra os 3×3. Coordenadas do ponteiro continuam "cruas" (`toPix` não dá a volta, para uma linha que cruza a emenda não atravessar o tile todo); quem dá a volta é `stampPoints` via `wrapPt`, além do balde (`floodFill` continua do outro lado), do conta-gotas (`compositeAt`) e do Mover sem seleção (`shiftPixels`). `inTiles` aceita o ponteiro em qualquer das 9 casas. "Deslocar ½" (`offsetHalf`) rola todas as camadas do quadro meio tile, com desfazer.
+- **Modo tile** (1.13.0, `st.tileMode`, salvo em `tileMode`, tecla **T**, botão com o ícone de quatro quadrados no trilho — logo abaixo da Mão — ou "Modo tile" no módulo Pincel e vista): o `draw()` repete o desenho nas 8 casas em volta (esmaecidas) e o `fit()` enquadra os 3×3. Coordenadas do ponteiro continuam "cruas" (`toPix` não dá a volta, para uma linha que cruza a emenda não atravessar o tile todo); quem dá a volta é `stampPoints` via `wrapPt`, além do balde (`floodFill` continua do outro lado), do conta-gotas (`compositeAt`) e do Mover sem seleção (`shiftPixels`). `inTiles` aceita o ponteiro em qualquer das 9 casas. "Deslocar ½" (`offsetHalf`) rola todas as camadas do quadro meio tile, com desfazer.
 - **Segurar 1 dedo parado 420 ms** = conta-gotas com **lupa** (anel: metade de cima = cor sob o dedo, de baixo = cor atual). Alt+clique faz o mesmo no mouse.
 - **Balde no toque só preenche ao soltar** (`fillPend`), para uma pinça que começa não preencher por engano.
 - Traços usam `getCoalescedEvents()` (linhas suaves com a Pencil). Pencil com hover (iPad Pro) mostra a prévia do pincel.
@@ -178,6 +178,7 @@ No iPad: abrir no Safari → Compartilhar → Adicionar à Tela de Início. O se
 
 ## Histórico
 
+- **1.13.1** — botão **Modo tile** no trilho de ferramentas (ícone de quatro quadrados, logo abaixo da Mão): no iPad sem teclado o modo só existia como caixa de seleção escondida no módulo Pincel e vista. Avisa ao ligar/desligar. 193 verificações.
 - **1.13.0** — **modo tile no editor**: o desenho aparece repetido em volta (3×3) para ver se as bordas encaixam; lápis, borracha, formas, balde, conta-gotas e Mover dão a volta nas bordas, e dá para pintar direto nas casas repetidas; botão **Deslocar ½** (traz as emendas para o meio); tecla T. 191 verificações.
 - **1.12.0** — **cor principal e secundária**: botão esquerdo pinta com a principal, o direito com a secundária; ao trocar de cor, a anterior vira a secundária; quadradinho da secundária (toque troca, para o iPad) no módulo Cor e na fileira de paleta, tecla W, botão direito na paleta escolhe a secundária, Alt + botão direito pega cor para ela. 183 verificações.
 - **1.11.0** — aba **VFX**: gerador de efeitos animados em pixel art (64 efeitos em 10 categorias: explosões, golpes, cortes, fogo e fumaça, magia, raios, projéteis, água e natureza, coletáveis, status), com motor próprio inspirado no Pixel VFX Maker; tamanho 32–192, quadros, velocidade, escala, densidade, brilho, variação, alfa duro, espelhar/girar, rampas de cor e "usar a paleta do editor"; **Abrir no editor** vira animação; exporta tira/grade PNG, GIF, ZIP + JSON, Godot 4 e a categoria inteira. 174 verificações.
